@@ -42,7 +42,7 @@ const PATROCINADORES = {
   },
   stefanello: {
     nome: "Stefanello",
-    logo: "assets/patrocinadores/stefanello.jpeg",
+    logo: "assets/patrocinadores/stefanello.png",
     link: "https://www.instagram.com/rodriivann",
   },
 };
