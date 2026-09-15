@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Mulish:wght@400;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,900&family=Mulish:wght@400;600;700;800&family=Bevan&display=swap");
 
 :root {
   --vinho: #7a2033;
@@ -13,6 +13,18 @@
   --texto-suave: #5a4d3f;
   --sombra: 0 12px 30px rgba(43, 33, 26, 0.14);
   --raio: 18px;
+
+  /* Tema "Baile do Chopp" — definidas no :root para poder ser usadas
+     também fora de .baile-chopp (ex: faixa decorativa bávara). */
+  --chopp-azul: #16305c;
+  --chopp-azul-claro: #2f5590;
+  --chopp-creme: #f7ecd2;
+  --chopp-dourado: #e8a83c;
+  --chopp-dourado-escuro: #b9791f;
+  --chopp-marrom: #241509;
+  --chopp-marrom-claro: #4a2f1c;
+  --chopp-vermelho: #a5282d;
+  --chopp-sombra: 0 18px 40px rgba(20, 12, 5, 0.35);
 }
 
 * {
@@ -851,6 +863,359 @@ section {
   0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.55); }
   70% { box-shadow: 0 0 0 16px rgba(37, 211, 102, 0); }
   100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+}
+
+/* ============================================================
+   TEMA "BAILE DO CHOPP" — ambientação alemã/Oktoberfest imersiva
+   Escopo isolado em .baile-chopp para não vazar para outras seções.
+   ============================================================ */
+.baile-chopp {
+  border-radius: var(--raio);
+  overflow: hidden;
+  background: var(--chopp-creme);
+  box-shadow: var(--chopp-sombra);
+  border: 1px solid rgba(36, 21, 9, 0.15);
+  font-family: "Mulish", sans-serif;
+}
+
+.baile-chopp h3,
+.baile-chopp h4,
+.baile-chopp h5 {
+  font-family: "Bevan", "Fraunces", serif;
+}
+
+/* --- Faixa xadrez bávara (losangos azul/branco) --- */
+.faixa-xadrez-bavara {
+  height: 14px;
+  background-image: repeating-linear-gradient(
+      45deg, var(--chopp-azul) 0, var(--chopp-azul) 10px, transparent 10px, transparent 20px
+    ),
+    repeating-linear-gradient(
+      -45deg, var(--chopp-azul) 0, var(--chopp-azul) 10px, transparent 10px, transparent 20px
+    );
+  background-color: #fff;
+}
+
+/* --- Hero do evento --- */
+.chopp-hero {
+  position: relative;
+  min-height: 420px;
+  display: flex;
+  align-items: flex-end;
+  background-size: cover;
+  background-position: center;
+  isolation: isolate;
+}
+
+.chopp-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(22, 14, 6, 0.35) 0%, rgba(22, 14, 6, 0.55) 45%, rgba(15, 9, 4, 0.94) 100%);
+  z-index: 0;
+}
+
+.chopp-hero-conteudo {
+  position: relative;
+  z-index: 1;
+  padding: 32px 32px 30px;
+  color: var(--chopp-creme);
+  width: 100%;
+}
+
+.chopp-selo-data {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--chopp-dourado);
+  color: var(--chopp-marrom);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+  padding: 7px 16px;
+  border-radius: 999px;
+  margin-bottom: 16px;
+}
+
+.chopp-titulo {
+  color: #fff;
+  font-size: clamp(1.9rem, 4.4vw, 3rem);
+  line-height: 1.08;
+  margin-bottom: 10px;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+}
+
+.chopp-subtitulo {
+  color: var(--chopp-creme);
+  font-size: 1.05rem;
+  max-width: 620px;
+  margin-bottom: 24px;
+  opacity: 0.95;
+}
+
+.chopp-hero .card-acoes {
+  margin-bottom: 0;
+}
+
+.chopp-hero .botao-secundario {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+/* --- Corpo --- */
+.chopp-corpo {
+  padding: 36px 32px 40px;
+  background: var(--chopp-creme);
+  color: var(--chopp-marrom);
+}
+
+.chopp-intro {
+  font-size: 1.02rem;
+  color: var(--chopp-marrom-claro);
+  max-width: 760px;
+  margin: 0 auto 40px;
+  text-align: center;
+}
+
+.chopp-bloco-titulo {
+  text-align: center;
+  margin-bottom: 26px;
+}
+
+.chopp-bloco-titulo .chopp-etiqueta {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chopp-azul);
+  margin-bottom: 6px;
+}
+
+.chopp-bloco-titulo h4 {
+  font-size: 1.5rem;
+  color: var(--chopp-marrom);
+  margin: 0;
+}
+
+/* --- Timeline de programação --- */
+.chopp-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 640px;
+  margin: 0 auto 48px;
+}
+
+.chopp-timeline-item {
+  display: flex;
+  gap: 20px;
+  position: relative;
+  padding-bottom: 30px;
+}
+
+.chopp-timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 34px;
+  top: 68px;
+  bottom: 0;
+  width: 2px;
+  background: repeating-linear-gradient(to bottom, var(--chopp-dourado) 0 6px, transparent 6px 12px);
+}
+
+.chopp-timeline-item:last-child::before {
+  display: none;
+}
+
+.chopp-timeline-hora {
+  flex: 0 0 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: var(--chopp-azul);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.82rem;
+  line-height: 1.1;
+  padding: 4px;
+  border: 3px solid var(--chopp-dourado);
+}
+
+.chopp-timeline-texto {
+  padding-top: 10px;
+}
+
+.chopp-timeline-texto h5 {
+  font-size: 1.15rem;
+  color: var(--chopp-azul);
+  margin: 0 0 6px;
+}
+
+.chopp-timeline-texto p {
+  color: var(--chopp-marrom-claro);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* --- Grade de destaques (bebidas, petiscos, camping, etc.) --- */
+.chopp-destaques-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 22px;
+  margin-bottom: 48px;
+}
+
+.chopp-destaque-card {
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(36, 21, 9, 0.12);
+  border: 1px solid rgba(36, 21, 9, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.chopp-destaque-imagem {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.chopp-destaque-corpo {
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.chopp-destaque-icone {
+  width: 42px;
+  height: 42px;
+  color: var(--chopp-vermelho);
+  margin-bottom: 10px;
+}
+
+.chopp-destaque-corpo h5 {
+  font-size: 1.05rem;
+  color: var(--chopp-azul);
+  margin: 0 0 8px;
+}
+
+.chopp-destaque-corpo p {
+  color: var(--chopp-marrom-claro);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* --- Lançamento dos lotes / contagem regressiva --- */
+.chopp-lancamento {
+  background: var(--chopp-azul);
+  background-image: radial-gradient(circle at top right, var(--chopp-azul-claro), var(--chopp-azul) 60%);
+  border-radius: 18px;
+  padding: 30px 28px;
+  text-align: center;
+  color: #fff;
+  margin-bottom: 44px;
+}
+
+.chopp-lancamento h4 {
+  color: var(--chopp-dourado);
+  font-size: 1.3rem;
+  margin-bottom: 10px;
+}
+
+.chopp-lancamento p {
+  max-width: 560px;
+  margin: 0 auto 22px;
+  color: #fff;
+  opacity: 0.95;
+}
+
+.chopp-countdown {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.chopp-countdown div {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  padding: 12px 16px;
+  min-width: 72px;
+}
+
+.chopp-countdown span {
+  display: block;
+  font-family: "Bevan", serif;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: var(--chopp-dourado);
+}
+
+.chopp-countdown label {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+  opacity: 0.85;
+}
+
+/* --- Patrocinadores dentro do tema chopp (ajuste de cores) --- */
+.baile-chopp .bloco-patrocinadores {
+  border-top: 1px dashed var(--chopp-dourado-escuro);
+}
+
+.baile-chopp .bloco-patrocinadores h4 {
+  color: var(--chopp-azul);
+  font-family: "Mulish", sans-serif;
+}
+
+.baile-chopp .patrocinador-item {
+  background: #fff;
+  border: 1px solid rgba(36, 21, 9, 0.08);
+}
+
+/* --- Responsivo (tema chopp) --- */
+@media (max-width: 760px) {
+  .chopp-hero {
+    min-height: 320px;
+  }
+
+  .chopp-hero-conteudo {
+    padding: 24px 20px 24px;
+  }
+
+  .chopp-corpo {
+    padding: 28px 20px 32px;
+  }
+
+  .chopp-timeline-item::before {
+    left: 29px;
+  }
+
+  .chopp-timeline-hora {
+    flex-basis: 60px;
+    height: 60px;
+    font-size: 0.74rem;
+  }
+
+  .chopp-countdown div {
+    min-width: 64px;
+    padding: 10px 12px;
+  }
+
+  .chopp-countdown span {
+    font-size: 1.4rem;
+  }
 }
 
 /* --- Responsivo --- */

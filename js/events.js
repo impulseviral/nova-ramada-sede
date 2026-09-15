@@ -47,57 +47,73 @@ const PATROCINADORES = {
   },
 };
 
+// Lançamento oficial dos lotes de ingressos e combos com barril de chopp.
+const LANCAMENTO_LOTES = {
+  dataIso: "2026-10-10T08:00:00-03:00",
+  label: "10 de outubro às 8h",
+};
+
 const EVENTS = [
-  {
-    id: "festival-massas-2026-08-09",
-    data: "2026-08-09",
-    dataLabel: "09 de Agosto · Domingo",
-    titulo: "1º Festival de Massas Artesanais da Região",
-    subtitulo: "Especial de Dia dos Pais",
-    destaque: true,
-    intro:
-      "Um almoço especial, uma tarde de música e a melhor companhia: sua família. A Comunidade Nova Ramada – Sede celebra o Dia dos Pais ao redor da mesa, com comida boa, conversa e muita alegria.",
-    atracoes: ["Musical Bom de Baile (Domingueira)"],
-    cardapio: [
-      "Galeto",
-      "Maionese",
-      "Molho de galinha",
-      "Strogonoff",
-      "Molho branco",
-      "Quatro queijos",
-      "Bolonhesa",
-      "Molho de legumes",
-      "Bacon com calabresa",
-      "Molho carbonara",
-      "Molho pesto",
-      "Queijo ralado",
-      "Espaguete",
-      "Tortei",
-    ],
-    valores: [
-      { label: "Almoço + Domingueira", preco: "R$ 50,00" },
-      { label: "Somente Domingueira", preco: "R$ 30,00" },
-    ],
-    observacao: "Garanta seu ingresso antecipado! Pois eles vão sumir rapidamente!",
-    mensagemWhatsapp:
-      "Olá Andréia! Vim pelo site da Nova Ramada e quero garantir meu ingresso para o 1º Festival de Massas Artesanais (09/08).",
-    // Para adicionar um apoiador deste evento, referencie uma chave de PATROCINADORES
-    // (definida no topo deste arquivo) ou crie um objeto novo no mesmo formato.
-    patrocinadores: [PATROCINADORES.divisao, PATROCINADORES.tvqc, PATROCINADORES.impulseViral, PATROCINADORES.estanciaMarmoreio, PATROCINADORES.stefanello],
-  },
   {
     id: "baile-do-chopp-2026-12-12",
     data: "2026-12-12",
     dataLabel: "12 de Dezembro · Sábado",
     titulo: "Tradicional Baile do Chopp",
-    subtitulo: "",
-    destaque: false,
-    emBreve: true,
-    ocultarContato: true,
+    subtitulo: "Uma noite de festa alemã, chopp gelado e música até o amanhecer",
+    destaque: true,
+    tema: "chopp",
+    emBreve: false,
+    ocultarContato: false,
     intro:
-      "O Clássico da comunidade estará de volta totalmente reformulado. Haverá atrações, cardápio e competições inéditas, diferente de tudo que você já viu. Em breve traremos mais informações.",
-    atracoes: [],
-    cardapio: [],
+      "Prepare o colete e o bom humor: a Comunidade Nova Ramada – Sede abre o pátio para uma noite inteira de credenciamento com happy hour, duas bandas ao vivo, chopp gelado, petiscos gourmet e a tradicional hospitalidade alemã que atravessa gerações na nossa colônia.",
+    programacao: [
+      {
+        horario: "18h",
+        titulo: "Credenciamento & Happy Hour",
+        descricao: "Abertura dos portões, retirada de ingressos e primeiras rodadas de chopp e petiscos.",
+      },
+      {
+        horario: "20h às 00h",
+        titulo: "Banda Os 5 Fritz",
+        descricao: "A pista esquenta com o repertório animado da banda Os 5 Fritz.",
+      },
+      {
+        horario: "00h às 4h",
+        titulo: "Banda Flor da Serra",
+        descricao: "Madrugada adentro com a Flor da Serra fechando a noite com chave de oro.",
+      },
+    ],
+    destaquesEvento: [
+      {
+        icone: "chopp",
+        titulo: "Chopp & Bar de Drinks",
+        descricao: "Chopp e cerveja gelados a noite toda, bar com drinks especiais e todas as bebidas tradicionais.",
+        imagem: "assets/eventos/chopp-baile.jpg",
+      },
+      {
+        icone: "petiscos",
+        titulo: "Petiscos Gourmet",
+        descricao: "Grande variedade de petiscos gourmet liberados desde o happy hour até o fim da festa.",
+        imagem: "assets/eventos/petiscos-baile.jpg",
+      },
+      {
+        icone: "acampamento",
+        titulo: "Pátio para Acampar",
+        descricao: "Depois do baile, monte sua barraca no pátio da comunidade e descanse tranquilo até o amanhecer.",
+        imagem: "assets/eventos/acampamento-baile.jpg",
+      },
+      {
+        icone: "estacionamento",
+        titulo: "Estacionamento no Local",
+        descricao: "Vaga garantida no pátio da comunidade por R$ 10,00 por carro.",
+      },
+      {
+        icone: "copo",
+        titulo: "Copo Personalizado",
+        descricao: "Os primeiros ingressos antecipados garantem um copo de chopp personalizado do evento, com alça.",
+      },
+    ],
+    lancamentoLotes: LANCAMENTO_LOTES,
     valores: [],
     observacao: "",
     mensagemWhatsapp:

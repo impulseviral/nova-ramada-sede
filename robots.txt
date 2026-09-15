@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://nova-ramada-sede.netlify.app/sitemap.xml

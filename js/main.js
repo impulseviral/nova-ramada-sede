@@ -119,6 +119,146 @@ function criarCardAgenda(evento) {
   `;
 }
 
+function iconesChopp(chave) {
+  const icones = {
+    chopp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8h9v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8Z"/><path d="M15 10h2.5a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H15"/><path d="M6 8c0-2 1-4 1-4M9 8c0-2.2 1.3-3.5 1.3-3.5M12 8c0-2 .8-3 .8-3" stroke-linecap="round"/></svg>`,
+    petiscos: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 10c1-1.5 2-1.5 2 0s1 1.5 2 0 2-1.5 2 0 2 1.5 2 0" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 15h8" stroke-linecap="round"/></svg>`,
+    acampamento: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 3 20h18L12 4Z"/><path d="M12 4v16" /><path d="M8.5 14h7" /></svg>`,
+    estacionamento: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    copo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4h8l-1 15a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2L7 4Z"/><path d="M15.5 7H18a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-3" /><path d="M7.5 8h7" /></svg>`,
+  };
+  return icones[chave] || "";
+}
+
+function criarBlocoTimeline(programacao) {
+  if (!programacao || !programacao.length) return "";
+  const itens = programacao
+    .map(
+      (item) => `
+      <div class="chopp-timeline-item">
+        <div class="chopp-timeline-hora">${item.horario}</div>
+        <div class="chopp-timeline-texto">
+          <h5>${item.titulo}</h5>
+          <p>${item.descricao}</p>
+        </div>
+      </div>`
+    )
+    .join("");
+
+  return `
+    <div class="chopp-bloco-titulo">
+      <span class="chopp-etiqueta">Programação da noite</span>
+      <h4>Do credenciamento à madrugada</h4>
+    </div>
+    <div class="chopp-timeline">${itens}</div>
+  `;
+}
+
+function criarGradeDestaques(destaques) {
+  if (!destaques || !destaques.length) return "";
+  const cards = destaques
+    .map((d) => {
+      const imagemHtml = d.imagem
+        ? `<img class="chopp-destaque-imagem" src="${d.imagem}" alt="${d.titulo}" loading="lazy" />`
+        : "";
+      return `
+      <div class="chopp-destaque-card">
+        ${imagemHtml}
+        <div class="chopp-destaque-corpo">
+          <div class="chopp-destaque-icone">${iconesChopp(d.icone)}</div>
+          <h5>${d.titulo}</h5>
+          <p>${d.descricao}</p>
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  return `
+    <div class="chopp-bloco-titulo">
+      <span class="chopp-etiqueta">O que vai ter</span>
+      <h4>Tudo pra noite ser inesquecível</h4>
+    </div>
+    <div class="chopp-destaques-grid">${cards}</div>
+  `;
+}
+
+function criarBlocoLancamento(lancamento) {
+  if (!lancamento) return "";
+  return `
+    <div class="chopp-lancamento">
+      <h4>🎟️ Lançamento dos Lotes</h4>
+      <p>Fique de olho! Os lotes de ingressos e os combos com barril de chopp serão lançados aqui no site em <strong>${lancamento.label}</strong>.</p>
+      <div class="chopp-countdown" id="chopp-countdown" data-lancamento="${lancamento.dataIso}">
+        <div><span id="cd-dias">00</span><label>dias</label></div>
+        <div><span id="cd-horas">00</span><label>horas</label></div>
+        <div><span id="cd-min">00</span><label>min</label></div>
+        <div><span id="cd-seg">00</span><label>seg</label></div>
+      </div>
+    </div>
+  `;
+}
+
+function iniciarContagemRegressiva() {
+  const container = document.getElementById("chopp-countdown");
+  if (!container) return;
+
+  const alvo = new Date(container.dataset.lancamento).getTime();
+  const elDias = document.getElementById("cd-dias");
+  const elHoras = document.getElementById("cd-horas");
+  const elMin = document.getElementById("cd-min");
+  const elSeg = document.getElementById("cd-seg");
+
+  function atualizar() {
+    const diff = alvo - Date.now();
+    if (diff <= 0) {
+      container.innerHTML = "<p style=\"color:#fff;font-weight:800;margin:0;\">Os lotes já estão disponíveis!</p>";
+      clearInterval(intervalo);
+      return;
+    }
+    const dias = Math.floor(diff / 86400000);
+    const horas = Math.floor((diff % 86400000) / 3600000);
+    const min = Math.floor((diff % 3600000) / 60000);
+    const seg = Math.floor((diff % 60000) / 1000);
+
+    elDias.textContent = String(dias).padStart(2, "0");
+    elHoras.textContent = String(horas).padStart(2, "0");
+    elMin.textContent = String(min).padStart(2, "0");
+    elSeg.textContent = String(seg).padStart(2, "0");
+  }
+
+  atualizar();
+  const intervalo = setInterval(atualizar, 1000);
+}
+
+function criarSecaoChopp(evento) {
+  const { dia, mes } = formatarDataCurta(evento.data);
+
+  return `
+    <article class="baile-chopp">
+      <div class="chopp-hero" style="background-image: url('assets/eventos/hero-baile-chopp.jpg');">
+        <div class="chopp-hero-conteudo">
+          <span class="chopp-selo-data">${dia} de ${mes.charAt(0).toUpperCase() + mes.slice(1)} · ${evento.dataLabel.split("·")[1] ? evento.dataLabel.split("·")[1].trim() : ""}</span>
+          <h3 class="chopp-titulo">${evento.titulo}</h3>
+          <p class="chopp-subtitulo">${evento.subtitulo}</p>
+          <div class="card-acoes">
+            <a class="botao botao-whatsapp" href="${waLink(evento.mensagemWhatsapp)}" target="_blank" rel="noopener">
+              ${iconeWhatsapp()} Reservar pelo Whatsapp
+            </a>
+            <a class="botao botao-secundario" href="#localizacao">${iconePin()} Como chegar</a>
+          </div>
+        </div>
+      </div>
+      <div class="chopp-corpo">
+        <p class="chopp-intro">${evento.intro}</p>
+        ${criarBlocoTimeline(evento.programacao)}
+        ${criarGradeDestaques(evento.destaquesEvento)}
+        ${criarBlocoLancamento(evento.lancamentoLotes)}
+        ${criarBlocoPatrocinadores(evento.patrocinadores)}
+      </div>
+    </article>
+  `;
+}
+
 function iconeWhatsapp() {
   return `<svg viewBox="0 0 24 24" class="icone" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.39 1.26 4.82L2 22l5.42-1.36a9.9 9.9 0 0 0 4.62 1.14h.01c5.46 0 9.9-4.45 9.9-9.9C21.95 6.45 17.5 2 12.04 2zm5.8 14.06c-.24.68-1.4 1.3-1.93 1.38-.5.08-1.11.11-1.79-.11-.41-.13-.95-.31-1.63-.6-2.87-1.24-4.74-4.15-4.88-4.34-.14-.19-1.17-1.56-1.17-2.98 0-1.42.74-2.11 1-2.4.26-.29.57-.36.76-.36.19 0 .38 0 .55.01.18.01.41-.07.64.49.24.58.81 2 .88 2.14.07.14.12.31.02.5-.1.19-.15.31-.29.48-.15.17-.31.38-.44.51-.15.15-.3.31-.13.6.17.29.76 1.25 1.63 2.02 1.12.99 2.06 1.3 2.36 1.45.29.14.46.12.63-.07.18-.19.75-.87.95-1.17.2-.29.4-.24.66-.14.27.1 1.7.8 1.99.95.29.14.48.22.55.34.07.12.07.7-.17 1.37z"/></svg>`;
 }
@@ -132,10 +272,16 @@ function renderizarEventos() {
   const destaque = ordenados.find((e) => e.destaque) || ordenados[0];
   const restantes = ordenados.filter((e) => e.id !== destaque.id);
 
-  document.getElementById("destaque-container").innerHTML = criarCardDestaque(destaque);
+  document.getElementById("destaque-container").innerHTML =
+    destaque.tema === "chopp" ? criarSecaoChopp(destaque) : criarCardDestaque(destaque);
+
   document.getElementById("agenda-container").innerHTML = restantes.length
     ? restantes.map(criarCardAgenda).join("")
     : `<p class="agenda-vazia">Novos eventos em breve. Fale com a Andréia pelo WhatsApp para saber mais!</p>`;
+
+  if (destaque.tema === "chopp") {
+    iniciarContagemRegressiva();
+  }
 }
 
 function montarLinksLocalizacao() {
