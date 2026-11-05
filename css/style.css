@@ -1025,6 +1025,15 @@ section {
   padding: 32px 32px 30px;
   color: var(--chopp-creme);
   width: 100%;
+  text-align: center;
+}
+
+.chopp-logo {
+  display: block;
+  width: clamp(150px, 24vw, 240px);
+  height: auto;
+  margin: 0 auto 12px;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
 }
 
 .chopp-selo-data {
@@ -1054,12 +1063,13 @@ section {
   color: var(--chopp-creme);
   font-size: 1.05rem;
   max-width: 620px;
-  margin-bottom: 24px;
+  margin: 0 auto 24px;
   opacity: 0.95;
 }
 
 .chopp-hero .card-acoes {
   margin-bottom: 0;
+  justify-content: center;
 }
 
 .chopp-hero .botao-secundario {
@@ -1627,5 +1637,24 @@ section {
   .chopp-barril {
     flex-direction: column;
     gap: 8px;
+  }
+
+  /* Topo do evento compacto: logo, título e botão "Reservar" cabem juntos na tela */
+  .chopp-hero-conteudo {
+    padding-top: 18px;
+  }
+
+  .chopp-logo {
+    width: 110px;
+    margin-bottom: 8px;
+  }
+
+  .chopp-titulo {
+    font-size: 1.6rem;
+  }
+
+  .chopp-subtitulo {
+    font-size: 0.95rem;
+    margin-bottom: 18px;
   }
 }

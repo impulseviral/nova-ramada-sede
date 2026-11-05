@@ -296,6 +296,7 @@ function criarSecaoChopp(evento) {
     <article class="baile-chopp">
       <div class="chopp-hero" id="reservar-evento" style="background-image: url('assets/eventos/hero-baile-chopp.jpg');">
         <div class="chopp-hero-conteudo">
+          ${evento.logo ? `<img class="chopp-logo" src="${evento.logo}" alt="Logo do Baile do Chopp" width="386" height="308" />` : ""}
           <span class="chopp-selo-data">${dia} de ${mes.charAt(0).toUpperCase() + mes.slice(1)} · ${evento.dataLabel.split("·")[1] ? evento.dataLabel.split("·")[1].trim() : ""}</span>
           <h3 class="chopp-titulo">${evento.titulo}</h3>
           <p class="chopp-subtitulo">${evento.subtitulo}</p>

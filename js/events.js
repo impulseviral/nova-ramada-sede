@@ -72,6 +72,7 @@ const EVENTS = [
     subtitulo: "Uma noite de festa alemã, chopp gelado e música até o amanhecer",
     destaque: true,
     tema: "chopp",
+    logo: "assets/eventos/logo-baile-do-chopp.png",
     emBreve: false,
     ocultarContato: false,
     intro:
