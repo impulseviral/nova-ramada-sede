@@ -1,10 +1,14 @@
 // Regras das reservas do mapa do ginásio (Tradicional Baile do Chopp 2026).
 // Tudo aqui é lógica pura (sem rede nem armazenamento) para poder ser testado.
 
-export const LANCAMENTO = Date.parse("2026-11-10T08:00:00-03:00"); // abertura das vendas
+// Abertura das vendas. ATENÇÃO: a mesma data está em js/events.js
+// (LANCAMENTO_LOTES.dataIso); se mudar, mude nos dois lugares.
+export const LANCAMENTO = Date.parse("2026-11-10T08:00:00-03:00");
 export const DURACAO_MS = 60 * 60 * 1000; // a reserva segura as posições por 1 hora
 export const MAX_POSICOES = 6; // posições por reserva
-export const MAX_POSICOES_POR_IP = 10; // soma das reservas vivas de uma mesma conexão
+// Soma das reservas vivas de uma mesma conexão. Folgado de propósito: num
+// interior, muita gente usa a mesma operadora e sai pelo mesmo IP (CGNAT).
+export const MAX_POSICOES_POR_IP = 20;
 const ALFABETO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // sem 0/O, 1/I/L
 
 export const POSICOES = (() => {

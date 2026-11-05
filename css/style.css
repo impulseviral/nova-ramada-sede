@@ -1484,11 +1484,11 @@ section {
   display: none;
 }
 
-.lg-estreito .lg-ocupada-cor {
+.lg-compacto .lg-ocupada-cor {
   display: inline;
 }
 
-.lg-estreito .lg-ocupada-palavra {
+.lg-compacto .lg-ocupada-palavra {
   display: none;
 }
 
@@ -1523,6 +1523,34 @@ section {
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 10px;
   padding: 8px 12px;
+}
+
+.lg-perdidas.lg-info {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Selo na lista: posição já reservada x nova (ainda não reservada) */
+.lg-escolha .lg-selo {
+  display: inline-block;
+  font-style: normal;
+  font-weight: 800;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--chopp-dourado);
+  color: var(--chopp-marrom);
+  border-radius: 5px;
+  padding: 1px 7px;
+  margin: 2px 0 3px;
+}
+
+.lg-escolha .lg-selo-nova {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.lg-reserva-titulo:focus {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
 }
 
 .lg-escolhas {
@@ -1858,6 +1886,15 @@ html.lg-zoom-aberto body {
 .lg-toque.visivel {
   opacity: 1;
   transform: none;
+}
+
+@media (min-width: 960px) {
+  .lg-toque {
+    right: auto;
+    left: 24px;
+    margin: 0;
+    width: 380px;
+  }
 }
 
 .lg-toque strong {
