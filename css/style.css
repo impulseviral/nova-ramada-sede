@@ -31,6 +31,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -83,6 +87,12 @@ a {
 section[id],
 .rodape[id] {
   scroll-margin-top: 84px;
+}
+
+/* Destino do botão "Chamar no Whatsapp" do rodapé: o início do evento em
+   destaque, com folga para o cabeçalho fixo não cobrir o topo. */
+#reservar-evento {
+  scroll-margin-top: 96px;
 }
 
 .cabecalho .container {
@@ -556,7 +566,7 @@ section {
 /* --- Agenda futura --- */
 .agenda-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 22px;
 }
 
@@ -597,6 +607,99 @@ section {
   text-align: center;
   color: var(--texto-suave);
   grid-column: 1 / -1;
+}
+
+/* --- Evite golpes (contatos oficiais) --- */
+.secao-golpes {
+  padding: 56px 0;
+}
+
+.golpes-card {
+  max-width: 820px;
+  margin: 0 auto;
+  background: #fff;
+  border: 2px solid var(--vinho);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  padding: 32px;
+}
+
+.golpes-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.golpes-icone {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  color: var(--vinho);
+}
+
+.golpes-etiqueta {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vinho);
+}
+
+.golpes-cabecalho h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2rem);
+}
+
+.golpes-texto {
+  margin: 0 0 24px;
+  font-size: 1.02rem;
+}
+
+.golpes-contatos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.golpes-contato {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  background: var(--creme);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.golpes-nome {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--verde);
+}
+
+.golpes-numero {
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.2rem, 6vw, 1.5rem);
+  font-weight: 700;
+  color: var(--vinho-escuro);
+  white-space: nowrap;
+  margin-bottom: 10px;
+}
+
+.golpes-dicas {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--texto-suave);
+  font-size: 0.95rem;
+}
+
+.golpes-dicas li + li {
+  margin-top: 6px;
 }
 
 /* --- Sobre --- */
@@ -719,7 +822,7 @@ section {
 
 .redes-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 30px;
   align-items: start;
 }
@@ -761,6 +864,7 @@ section {
 .redes-instagram-card h3 {
   font-size: 1.2rem;
   margin-bottom: 8px;
+  overflow-wrap: anywhere;
 }
 
 .redes-instagram-card p {
@@ -775,7 +879,7 @@ section {
 
 @media (max-width: 760px) {
   .redes-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1048,6 +1152,7 @@ section {
 
 .chopp-timeline-texto {
   padding-top: 10px;
+  min-width: 0;
 }
 
 .chopp-timeline-texto h5 {
@@ -1113,6 +1218,116 @@ section {
   margin: 0;
 }
 
+/* --- Os chopps do Baile (cartaz + "torneiras") --- */
+.chopp-chopps {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 32px;
+  align-items: center;
+  margin-bottom: 48px;
+}
+
+.chopp-chopps.sem-cartaz {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.chopp-chopps-cartaz {
+  margin: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 14px 30px rgba(36, 21, 9, 0.25);
+}
+
+.chopp-chopps-cartaz img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chopp-chopps-intro {
+  color: var(--chopp-marrom-claro);
+  margin: 0 0 18px;
+}
+
+.chopp-torneiras {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.chopp-torneira {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--chopp-marrom);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.chopp-copo-cor {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 36px;
+  border-radius: 3px 3px 7px 7px;
+  background: linear-gradient(to bottom, #fffaf0 0 24%, var(--cor-chopp) 24% 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.chopp-torneira-texto {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.chopp-torneira-texto strong {
+  font-family: "Bevan", serif;
+  font-weight: 400;
+  font-size: 1.05rem;
+  color: #fff;
+}
+
+.chopp-torneira-texto span {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--chopp-dourado);
+}
+
+.chopp-barril {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: #fff;
+  border: 2px dashed var(--chopp-dourado-escuro);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.chopp-barril-icone {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  color: var(--chopp-vermelho);
+}
+
+.chopp-barril h5 {
+  font-size: 1.05rem;
+  color: var(--chopp-azul);
+  margin: 0 0 4px;
+}
+
+.chopp-barril p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--chopp-marrom-claro);
+}
+
 /* --- Lançamento dos lotes / contagem regressiva --- */
 .chopp-lancamento {
   background: var(--chopp-azul);
@@ -1169,6 +1384,23 @@ section {
   opacity: 0.85;
 }
 
+.chopp-lancamento-compra {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chopp-lancamento .chopp-alerta-golpe {
+  margin: 22px auto 0;
+  font-size: 0.92rem;
+}
+
+.chopp-alerta-golpe a {
+  color: var(--chopp-dourado);
+  font-weight: 800;
+}
+
 /* --- Patrocinadores dentro do tema chopp (ajuste de cores) --- */
 .baile-chopp .bloco-patrocinadores {
   border-top: 1px dashed var(--chopp-dourado-escuro);
@@ -1215,6 +1447,16 @@ section {
 
   .chopp-countdown span {
     font-size: 1.4rem;
+  }
+
+  .chopp-chopps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+
+  .chopp-chopps-cartaz {
+    max-width: 420px;
+    margin: 0 auto;
   }
 }
 
@@ -1345,5 +1587,45 @@ section {
   .whatsapp-flutuante .icone {
     width: 26px;
     height: 26px;
+  }
+
+  #reservar-evento {
+    scroll-margin-top: 128px;
+  }
+
+  .golpes-card {
+    padding: 24px 20px;
+  }
+
+  .golpes-contato .botao,
+  .chopp-lancamento-compra .botao {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Celulares muito estreitos (ex.: 320px) */
+@media (max-width: 360px) {
+  .chopp-timeline-item {
+    gap: 12px;
+  }
+
+  .chopp-timeline-item::before {
+    left: 25px;
+  }
+
+  .chopp-timeline-hora {
+    flex-basis: 52px;
+    height: 52px;
+    font-size: 0.68rem;
+  }
+
+  .chopp-timeline-texto h5 {
+    font-size: 1rem;
+  }
+
+  .chopp-barril {
+    flex-direction: column;
+    gap: 8px;
   }
 }

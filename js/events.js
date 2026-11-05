@@ -2,7 +2,14 @@
 // Para adicionar/editar um evento, basta adicionar um novo objeto neste array.
 // Datas no formato "YYYY-MM-DD" para ordenação correta.
 
-const WHATSAPP_NUMBER = "5551995882473"; // Andréia
+// Únicos contatos oficiais da organização. Os mesmos números aparecem
+// escritos na seção "Evite golpes" do index.html — mudar nos dois lugares.
+const CONTATOS_OFICIAIS = [
+  { nome: "Andréia", whatsapp: "5551995882473" },
+  { nome: "Raquel", whatsapp: "5551995006210" },
+];
+
+const WHATSAPP_NUMBER = CONTATOS_OFICIAIS[0].whatsapp; // Andréia: contato padrão dos botões
 const LOCAL = {
   nome: "Comunidade Nova Ramada – Sede",
   cidade: "Júlio de Castilhos – RS",
@@ -48,9 +55,12 @@ const PATROCINADORES = {
 };
 
 // Lançamento oficial dos lotes de ingressos e combos com barril de chopp.
+// A venda é pelo WhatsApp dos contatos oficiais; quando a contagem zera,
+// o site troca sozinho para "Lotes à venda!" com os botões de compra.
 const LANCAMENTO_LOTES = {
-  dataIso: "2026-10-10T08:00:00-03:00",
-  label: "10 de outubro às 8h",
+  dataIso: "2026-11-10T08:00:00-03:00",
+  label: "10 de novembro às 8h",
+  mensagemCompra: "Vim pelo site da Nova Ramada e quero garantir meu ingresso para o Tradicional Baile do Chopp (12/12).",
 };
 
 const EVENTS = [
@@ -65,7 +75,7 @@ const EVENTS = [
     emBreve: false,
     ocultarContato: false,
     intro:
-      "Prepare o colete e o bom humor: a Comunidade Nova Ramada – Sede abre o pátio para uma noite inteira de credenciamento com happy hour, duas bandas ao vivo, chopp gelado, petiscos gourmet e a tradicional hospitalidade alemã que atravessa gerações na nossa colônia.",
+      "Separe o colete e o bom humor: a Comunidade Nova Ramada – Sede organiza uma noite inteira de festa, com happy hour, duas bandas ao vivo, chopp gelado, petiscos gourmet e a tradicional hospitalidade alemã que atravessa gerações na nossa colônia.",
     programacao: [
       {
         horario: "18h",
@@ -80,7 +90,7 @@ const EVENTS = [
       {
         horario: "00h às 4h",
         titulo: "Banda Flor da Serra",
-        descricao: "Madrugada adentro com a Flor da Serra fechando a noite com chave de oro.",
+        descricao: "Madrugada adentro com a Flor da Serra fechando a noite com chave de ouro.",
       },
     ],
     destaquesEvento: [
@@ -93,26 +103,29 @@ const EVENTS = [
       {
         icone: "petiscos",
         titulo: "Petiscos Gourmet",
-        descricao: "Grande variedade de petiscos gourmet liberados desde o happy hour até o fim da festa.",
+        descricao: "Grande variedade de petiscos gourmet desde o happy hour e durante todo o baile.",
         imagem: "assets/eventos/petiscos-baile.jpg",
       },
       {
-        icone: "acampamento",
-        titulo: "Pátio para Acampar",
-        descricao: "Depois do baile, monte sua barraca no pátio da comunidade e descanse tranquilo até o amanhecer.",
-        imagem: "assets/eventos/acampamento-baile.jpg",
-      },
-      {
-        icone: "estacionamento",
-        titulo: "Estacionamento no Local",
-        descricao: "Vaga garantida no pátio da comunidade por R$ 10,00 por carro.",
-      },
-      {
         icone: "copo",
-        titulo: "Copo Personalizado",
-        descricao: "Os primeiros ingressos antecipados garantem um copo de chopp personalizado do evento, com alça.",
+        titulo: "Copo de Brinde",
+        descricao: "Os primeiros a garantir o ingresso ganham o copo personalizado do Baile do Chopp, com alça.",
+        imagem: "assets/eventos/copo-brinde.jpg",
+        posicaoImagem: "center 14%",
       },
     ],
+    chopps: {
+      intro: "Qualidade, sabor e toda a tradição da Imigração Express Santa Maria para deixar essa noite ainda mais especial.",
+      cartaz: "assets/eventos/cartaz-chopps.jpg",
+      cartazAlt: "Cartaz oficial dos chopps do Baile do Chopp: Imigração Pilsen e Roleta Russa Pilsen Extrema, Easy IPA e IPA",
+      opcoes: [
+        { marca: "Imigração", estilo: "Pilsen", cor: "#f2b632" },
+        { marca: "Roleta Russa", estilo: "Pilsen Extrema", cor: "#d9732a" },
+        { marca: "Roleta Russa", estilo: "Easy IPA", cor: "#eba12a" },
+        { marca: "Roleta Russa", estilo: "IPA", cor: "#9e2f25" },
+      ],
+      barril: "Você pode escolher o tipo de chopp e comprar um barril exclusivo para o seu grupo — ideal para amigos, família e empresas. Garanta o seu e brinde essa noite especial!",
+    },
     lancamentoLotes: LANCAMENTO_LOTES,
     valores: [],
     observacao: "",

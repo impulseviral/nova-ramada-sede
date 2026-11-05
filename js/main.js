@@ -1,5 +1,5 @@
-function waLink(mensagem) {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensagem)}`;
+function waLink(mensagem, numero = WHATSAPP_NUMBER) {
+  return `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
 }
 
 function formatarDataCurta(iso) {
@@ -45,7 +45,7 @@ function criarCardDestaque(evento) {
   const patrocinadoresHtml = criarBlocoPatrocinadores(evento.patrocinadores);
 
   return `
-    <article class="card-destaque">
+    <article class="card-destaque" id="reservar-evento">
       <div class="data-selo">
         <span class="data-dia">${dia}</span>
         <span class="data-mes">${mes}</span>
@@ -123,9 +123,8 @@ function iconesChopp(chave) {
   const icones = {
     chopp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8h9v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8Z"/><path d="M15 10h2.5a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H15"/><path d="M6 8c0-2 1-4 1-4M9 8c0-2.2 1.3-3.5 1.3-3.5M12 8c0-2 .8-3 .8-3" stroke-linecap="round"/></svg>`,
     petiscos: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 10c1-1.5 2-1.5 2 0s1 1.5 2 0 2-1.5 2 0 2 1.5 2 0" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 15h8" stroke-linecap="round"/></svg>`,
-    acampamento: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 3 20h18L12 4Z"/><path d="M12 4v16" /><path d="M8.5 14h7" /></svg>`,
-    estacionamento: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     copo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4h8l-1 15a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2L7 4Z"/><path d="M15.5 7H18a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-3" /><path d="M7.5 8h7" /></svg>`,
+    barril: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h10c1.2 2.6 1.8 5.6 1.8 9s-.6 6.4-1.8 9H7c-1.2-2.6-1.8-5.6-1.8-9S5.8 5.6 7 3Z" stroke-linejoin="round"/><path d="M5.5 8h13M5.5 16h13" /></svg>`,
   };
   return icones[chave] || "";
 }
@@ -159,7 +158,7 @@ function criarGradeDestaques(destaques) {
   const cards = destaques
     .map((d) => {
       const imagemHtml = d.imagem
-        ? `<img class="chopp-destaque-imagem" src="${d.imagem}" alt="${d.titulo}" loading="lazy" />`
+        ? `<img class="chopp-destaque-imagem" src="${d.imagem}" alt="${d.titulo}" loading="lazy"${d.posicaoImagem ? ` style="object-position: ${d.posicaoImagem};"` : ""} />`
         : "";
       return `
       <div class="chopp-destaque-card">
@@ -182,18 +181,66 @@ function criarGradeDestaques(destaques) {
   `;
 }
 
+function criarBlocoChopps(chopps) {
+  if (!chopps) return "";
+
+  const cartazHtml = chopps.cartaz
+    ? `<figure class="chopp-chopps-cartaz"><img src="${chopps.cartaz}" alt="${chopps.cartazAlt}" loading="lazy" /></figure>`
+    : "";
+  const torneiras = chopps.opcoes
+    .map(
+      (o) => `
+        <li class="chopp-torneira" style="--cor-chopp: ${o.cor};">
+          <span class="chopp-copo-cor" aria-hidden="true"></span>
+          <span class="chopp-torneira-texto"><strong>${o.marca}</strong><span>${o.estilo}</span></span>
+        </li>`
+    )
+    .join("");
+
+  return `
+    <div class="chopp-bloco-titulo">
+      <span class="chopp-etiqueta">Chopp definido</span>
+      <h4>Os chopps do Baile</h4>
+    </div>
+    <div class="chopp-chopps${chopps.cartaz ? "" : " sem-cartaz"}">
+      ${cartazHtml}
+      <div class="chopp-chopps-conteudo">
+        <p class="chopp-chopps-intro">${chopps.intro}</p>
+        <ul class="chopp-torneiras">${torneiras}</ul>
+        <div class="chopp-barril">
+          <div class="chopp-barril-icone">${iconesChopp("barril")}</div>
+          <div>
+            <h5>Barril exclusivo para o seu grupo</h5>
+            <p>${chopps.barril}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function criarBlocoLancamento(lancamento) {
   if (!lancamento) return "";
+
+  const botoesCompra = CONTATOS_OFICIAIS.map(
+    (c) => `
+        <a class="botao botao-whatsapp" href="${waLink(`Olá ${c.nome}! ${lancamento.mensagemCompra}`, c.whatsapp)}" target="_blank" rel="noopener">
+          ${iconeWhatsapp()} Comprar com a ${c.nome}
+        </a>`
+  ).join("");
+
   return `
     <div class="chopp-lancamento">
-      <h4>🎟️ Lançamento dos Lotes</h4>
-      <p>Fique de olho! Os lotes de ingressos e os combos com barril de chopp serão lançados aqui no site em <strong>${lancamento.label}</strong>.</p>
+      <h4 id="chopp-lancamento-titulo">🎟️ Lançamento dos Lotes</h4>
+      <p id="chopp-lancamento-texto">Fique de olho! Os lotes de ingressos e os combos com barril de chopp serão lançados aqui no site em <strong>${lancamento.label}</strong>, com venda pelo WhatsApp da Andréia e da Raquel.</p>
       <div class="chopp-countdown" id="chopp-countdown" data-lancamento="${lancamento.dataIso}">
         <div><span id="cd-dias">00</span><label>dias</label></div>
         <div><span id="cd-horas">00</span><label>horas</label></div>
         <div><span id="cd-min">00</span><label>min</label></div>
         <div><span id="cd-seg">00</span><label>seg</label></div>
       </div>
+      <div class="chopp-lancamento-compra" id="chopp-lancamento-compra" hidden>${botoesCompra}</div>
+      <p class="chopp-alerta-golpe">⚠️ Cuidado com golpes! <a href="#evite-golpes">Confira os únicos números oficiais da organização</a>.</p>
     </div>
   `;
 }
@@ -208,12 +255,14 @@ function iniciarContagemRegressiva() {
   const elMin = document.getElementById("cd-min");
   const elSeg = document.getElementById("cd-seg");
 
+  let intervalo;
+
   function atualizar() {
     const diff = alvo - Date.now();
     if (diff <= 0) {
-      container.innerHTML = "<p style=\"color:#fff;font-weight:800;margin:0;\">Os lotes já estão disponíveis!</p>";
       clearInterval(intervalo);
-      return;
+      abrirVendas(container);
+      return false;
     }
     const dias = Math.floor(diff / 86400000);
     const horas = Math.floor((diff % 86400000) / 3600000);
@@ -224,10 +273,20 @@ function iniciarContagemRegressiva() {
     elHoras.textContent = String(horas).padStart(2, "0");
     elMin.textContent = String(min).padStart(2, "0");
     elSeg.textContent = String(seg).padStart(2, "0");
+    return true;
   }
 
-  atualizar();
-  const intervalo = setInterval(atualizar, 1000);
+  if (atualizar()) {
+    intervalo = setInterval(atualizar, 1000);
+  }
+}
+
+function abrirVendas(contador) {
+  contador.hidden = true;
+  document.getElementById("chopp-lancamento-titulo").textContent = "🎟️ Lotes à venda!";
+  document.getElementById("chopp-lancamento-texto").textContent =
+    "Os lotes de ingressos e os combos com barril de chopp já estão à venda pelo WhatsApp da Andréia e da Raquel.";
+  document.getElementById("chopp-lancamento-compra").hidden = false;
 }
 
 function criarSecaoChopp(evento) {
@@ -235,7 +294,7 @@ function criarSecaoChopp(evento) {
 
   return `
     <article class="baile-chopp">
-      <div class="chopp-hero" style="background-image: url('assets/eventos/hero-baile-chopp.jpg');">
+      <div class="chopp-hero" id="reservar-evento" style="background-image: url('assets/eventos/hero-baile-chopp.jpg');">
         <div class="chopp-hero-conteudo">
           <span class="chopp-selo-data">${dia} de ${mes.charAt(0).toUpperCase() + mes.slice(1)} · ${evento.dataLabel.split("·")[1] ? evento.dataLabel.split("·")[1].trim() : ""}</span>
           <h3 class="chopp-titulo">${evento.titulo}</h3>
@@ -252,6 +311,7 @@ function criarSecaoChopp(evento) {
         <p class="chopp-intro">${evento.intro}</p>
         ${criarBlocoTimeline(evento.programacao)}
         ${criarGradeDestaques(evento.destaquesEvento)}
+        ${criarBlocoChopps(evento.chopps)}
         ${criarBlocoLancamento(evento.lancamentoLotes)}
         ${criarBlocoPatrocinadores(evento.patrocinadores)}
       </div>
@@ -312,7 +372,6 @@ function montarRedesSociais() {
 function montarWhatsappFlutuante() {
   const mensagem = "Olá Andréia! Vim pelo site da Nova Ramada e gostaria de mais informações.";
   document.getElementById("whatsapp-flutuante").href = waLink(mensagem);
-  document.getElementById("whatsapp-rodape").href = waLink(mensagem);
 }
 
 function montarMenuMobile() {
@@ -352,11 +411,21 @@ function parseFacebookPagePlugin() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  renderizarEventos();
-  montarLinksLocalizacao();
-  montarWhatsappFlutuante();
-  montarRedesSociais();
-  montarMenuMobile();
-  document.getElementById("ano-atual").textContent = new Date().getFullYear();
-  parseFacebookPagePlugin();
+  const passos = [
+    renderizarEventos,
+    montarLinksLocalizacao,
+    montarWhatsappFlutuante,
+    montarRedesSociais,
+    montarMenuMobile,
+    () => { document.getElementById("ano-atual").textContent = new Date().getFullYear(); },
+    parseFacebookPagePlugin,
+  ];
+  // Cada passo roda isolado: um erro num deles não pode deixar os botões do site sem destino.
+  passos.forEach((passo) => {
+    try {
+      passo();
+    } catch (erro) {
+      console.error(erro);
+    }
+  });
 });
