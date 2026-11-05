@@ -306,6 +306,7 @@ section[id],
 .botao .icone {
   width: 20px;
   height: 20px;
+  flex-shrink: 0;
 }
 
 .botao-whatsapp {
@@ -861,8 +862,10 @@ section {
   margin-bottom: 16px;
 }
 
+/* Fonte menor no celular para o @ caber em uma linha; se não couber,
+   quebra nos pontos marcados com <wbr> no index.html. */
 .redes-instagram-card h3 {
-  font-size: 1.2rem;
+  font-size: min(1.1rem, 4.5vw);
   margin-bottom: 8px;
   overflow-wrap: anywhere;
 }
@@ -1338,6 +1341,25 @@ section {
   color: var(--chopp-marrom-claro);
 }
 
+.chopp-barril-tamanhos {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chopp-barril-tamanhos li {
+  background: var(--chopp-azul);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  padding: 5px 14px;
+  border-radius: 999px;
+}
+
 /* --- Lançamento dos lotes / contagem regressiva --- */
 .chopp-lancamento {
   background: var(--chopp-azul);
@@ -1442,12 +1464,17 @@ section {
 
   .chopp-timeline-item::before {
     left: 29px;
+    top: 58px;
   }
 
   .chopp-timeline-hora {
     flex-basis: 60px;
     height: 60px;
     font-size: 0.74rem;
+  }
+
+  .chopp-lancamento {
+    padding: 26px 16px;
   }
 
   .chopp-countdown div {
@@ -1464,7 +1491,9 @@ section {
     gap: 22px;
   }
 
+  /* width: 100% evita que o cartaz encolha para zero antes de carregar */
   .chopp-chopps-cartaz {
+    width: 100%;
     max-width: 420px;
     margin: 0 auto;
   }
@@ -1612,6 +1641,10 @@ section {
     width: 100%;
     justify-content: center;
   }
+
+  .chopp-lancamento-compra .botao {
+    padding: 14px 18px;
+  }
 }
 
 /* Celulares muito estreitos (ex.: 320px) */
@@ -1622,6 +1655,7 @@ section {
 
   .chopp-timeline-item::before {
     left: 25px;
+    top: 50px;
   }
 
   .chopp-timeline-hora {

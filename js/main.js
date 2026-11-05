@@ -158,7 +158,7 @@ function criarGradeDestaques(destaques) {
   const cards = destaques
     .map((d) => {
       const imagemHtml = d.imagem
-        ? `<img class="chopp-destaque-imagem" src="${d.imagem}" alt="${d.titulo}" loading="lazy"${d.posicaoImagem ? ` style="object-position: ${d.posicaoImagem};"` : ""} />`
+        ? `<img class="chopp-destaque-imagem" src="${d.imagem}" alt="${d.imagemAlt || d.titulo}" loading="lazy"${d.posicaoImagem ? ` style="object-position: ${d.posicaoImagem};"` : ""} />`
         : "";
       return `
       <div class="chopp-destaque-card">
@@ -184,8 +184,13 @@ function criarGradeDestaques(destaques) {
 function criarBlocoChopps(chopps) {
   if (!chopps) return "";
 
+  // width/height reservam o espaço do cartaz antes de ele carregar; sem isso a
+  // página "pula" e os links do menu param no lugar errado.
   const cartazHtml = chopps.cartaz
-    ? `<figure class="chopp-chopps-cartaz"><img src="${chopps.cartaz}" alt="${chopps.cartazAlt}" loading="lazy" /></figure>`
+    ? `<figure class="chopp-chopps-cartaz"><img src="${chopps.cartaz}" alt="${chopps.cartazAlt}" width="900" height="1125" loading="lazy" /></figure>`
+    : "";
+  const tamanhosHtml = chopps.tamanhosBarril && chopps.tamanhosBarril.length
+    ? `<ul class="chopp-barril-tamanhos">${chopps.tamanhosBarril.map((t) => `<li>${t}</li>`).join("")}</ul>`
     : "";
   const torneiras = chopps.opcoes
     .map(
@@ -211,6 +216,7 @@ function criarBlocoChopps(chopps) {
           <div class="chopp-barril-icone">${iconesChopp("barril")}</div>
           <div>
             <h5>Barril exclusivo para o seu grupo</h5>
+            ${tamanhosHtml}
             <p>${chopps.barril}</p>
           </div>
         </div>
