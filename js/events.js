@@ -44,7 +44,7 @@ const PATROCINADORES = {
   },
   estanciaMarmoreio: {
     nome: "Estância Marmoreio",
-    logo: "assets/patrocinadores/estancia-marmoreio.svg",
+    logo: "assets/patrocinadores/estancia-marmoreio.png",
     link: "https://www.instagram.com/estanciamarmoreio",
   },
   stefanello: {
@@ -58,6 +58,7 @@ const PATROCINADORES = {
 // A venda é pelo WhatsApp dos contatos oficiais; quando a contagem zera,
 // o site troca sozinho para "Lotes à venda!" com os botões de compra.
 const LANCAMENTO_LOTES = {
+  // A mesma data está em netlify/functions/reservas/logica.mjs (LANCAMENTO): mude nos dois.
   dataIso: "2026-11-10T08:00:00-03:00",
   label: "10 de novembro às 8h",
   mensagemCompra: "Vim pelo site da Nova Ramada e quero garantir meu ingresso para o Tradicional Baile do Chopp (12/12).",
@@ -131,11 +132,17 @@ const EVENTS = [
     },
     // Layout do ginásio enviado pela organização em 05/11/2026: chopeiras 1 a 13
     // na parede da esquerda, 14 a 18 na da direita e mesas 1 a 20 no centro.
-    // Posições já vendidas: coloque os números conforme a organização avisar,
-    // ex.: chopeirasVendidas: [13], mesasVendidas: [5, 6]. No mapa elas ganham
-    // a inscrição "VENDIDA" e não podem mais ser marcadas.
+    // Posições vendidas ganham a inscrição "VENDIDA" e não podem mais ser marcadas.
     layoutGinasio: {
       imagem: "assets/eventos/layout-ginasio.png",
+      // Planilha do Google em que a organização marca as vendidas (1ª aba,
+      // coluna Situação = VENDIDA). O site lê ao abrir e a cada 45 segundos.
+      // Ela precisa estar compartilhada como "Qualquer pessoa com o link: Leitor";
+      // se não estiver ou cair, o site usa só as listas abaixo.
+      // O mesmo ID está em netlify/functions/reservas/reservas.mjs (PLANILHA): mude nos dois.
+      planilhaVendidas: "1vVGZm6JphK1Rw7S7OWOKkM9AJ9gxXFhMwGCIyHpaqXE",
+      // Reserva: vendidas escritas direto aqui (somam com a planilha),
+      // ex.: chopeirasVendidas: [13], mesasVendidas: [5, 6].
       chopeirasVendidas: [],
       mesasVendidas: [],
     },

@@ -1,0 +1,11 @@
+{
+  "name": "nova-ramada-sede",
+  "private": true,
+  "description": "Site da Comunidade Nova Ramada – Sede (estático) com a função de reservas do Baile do Chopp",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@netlify/blobs": "11.1.7"
+  }
+}

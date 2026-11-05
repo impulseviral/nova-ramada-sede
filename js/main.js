@@ -79,7 +79,7 @@ function criarBlocoPatrocinadores(patrocinadores) {
   const itens = patrocinadores
     .map((p) => {
       const conteudo = p.logo
-        ? `<img src="${p.logo}" alt="${p.nome}" title="${p.nome}" />`
+        ? `<img src="${p.logo}" alt="${p.nome}" title="${p.nome}" loading="lazy" decoding="async" />`
         : `<span>${p.nome}</span>`;
       return p.link
         ? `<a class="patrocinador-item" href="${p.link}" target="_blank" rel="noopener">${conteudo}</a>`
@@ -227,17 +227,46 @@ function criarBlocoChopps(chopps) {
 
 // ---------- Layout do ginásio ----------
 // Mapa redesenhado a partir do layout enviado pela organização (1024 x 1536),
-// nas mesmas posições. O visitante toca nas chopeiras e mesas para marcar a
-// posição que quer; a escolha fica salva no aparelho e, quando as vendas
-// abrem, vai junto na mensagem de WhatsApp para a Andréia ou a Raquel.
-const LAYOUT_ARMAZENAMENTO = "baile-chopp-2026-layout";
+// nas mesmas posições. O visitante marca as chopeiras e mesas que quer; depois
+// da abertura das vendas ele reserva as posições por 1 hora (função
+// /api/reservas no Netlify) e envia a reserva pelo WhatsApp da Andréia ou da
+// Raquel. As vendidas vêm da planilha da organização.
+const LAYOUT_ARMAZENAMENTO = "baile-chopp-2026-layout"; // posições marcadas
+const LAYOUT_RESERVA = "baile-chopp-2026-reserva"; // reserva viva deste aparelho
+const LAYOUT_DISPOSITIVO = "baile-chopp-2026-dispositivo"; // identificador aleatório do aparelho
+const LAYOUT_API = "/api/reservas";
+const LAYOUT_MAX_POSICOES = 6; // igual ao limite do servidor
 const layoutEstado = {
   escolhas: [], // ex.: ["chopeira-5", "mesa-12"]
-  vendidas: [],
+  vendidasBase: [], // escritas no events.js
+  vendidas: [], // events.js + planilha
+  reservadas: {}, // posição -> horário-limite (ISO) ou "" (reservada pela organização); sem as minhas
+  minhaReserva: null, // { codigo, posicoes, ate, desde }
+  perdidas: [],
+  planilha: "",
+  dispositivo: "",
+  apiOk: null, // null: ainda não sabe; false: serviço de reservas fora do ar
+  falhasApi: 0,
+  reservasLigadas: true,
+  desvio: 0, // relógio do servidor menos o relógio do aparelho
+  buscando: false,
+  ultimaBusca: 0,
+  timerBusca: null,
+  reservando: false,
+  erroReserva: "",
   vendasAbertas: false,
   salvaNoAparelho: false,
   timerToque: null,
+  timerContagem: null,
+  assinaturaMapa: "",
+  zoomAberto: false,
+  planilhaOk: true, // a função consegue ler a planilha da organização
+  reservaBloqueada: false, // limite por conexão atingido: oferece o WhatsApp
+  mapaVisivel: false,
+  ultimaInteracao: Date.now(),
 };
+// Depois do baile o site para de consultar o servidor.
+const LAYOUT_FIM = Date.parse("2026-12-13T06:00:00-03:00");
 
 function layoutItens() {
   const itens = [];
@@ -299,10 +328,64 @@ function juntarComE(lista) {
   return `${lista.slice(0, -1).join(", ")} e ${lista[lista.length - 1]}`;
 }
 
-// Mensagem dos botões de compra; leva a escolha do layout, se houver.
+function layoutMesmaLista(a, b) {
+  return a.slice().sort().join(",") === b.slice().sort().join(",");
+}
+
+// ----- Relógio e horários (sempre no horário de Brasília) -----
+function agoraServidor() {
+  return Date.now() + layoutEstado.desvio;
+}
+
+// idade: segundos que a resposta passou guardada no CDN (cabeçalho Age).
+function layoutAjustarRelogio(iso, idade) {
+  const servidor = Date.parse(iso);
+  if (!isNaN(servidor)) layoutEstado.desvio = servidor + (idade || 0) * 1000 - Date.now();
+}
+
+function partesHorario(ms) {
+  try {
+    const partes = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(ms));
+    const valor = (tipo) => (partes.find((p) => p.type === tipo) || {}).value || "";
+    return { dia: valor("day"), mes: valor("month"), hora: String(Number(valor("hour")) % 24), minuto: valor("minute") };
+  } catch (erro) {
+    const d = new Date(ms);
+    return { dia: String(d.getDate()).padStart(2, "0"), mes: String(d.getMonth() + 1).padStart(2, "0"), hora: String(d.getHours()), minuto: String(d.getMinutes()).padStart(2, "0") };
+  }
+}
+
+function horaCurta(ms) {
+  const p = partesHorario(ms);
+  return `${p.hora}h${p.minuto}`;
+}
+
+function dataCurta(ms) {
+  const p = partesHorario(ms);
+  return `${p.dia}/${p.mes}`;
+}
+
+function textoFaltam(ms) {
+  const minutos = Math.max(0, Math.ceil((ms - agoraServidor()) / 60000));
+  if (minutos <= 1) return "falta menos de 1 minuto";
+  return `faltam ${minutos} minutos`;
+}
+
+// ----- Mensagens de WhatsApp -----
+// Leva a reserva (com código e horário-limite) ou, sem reserva, as posições marcadas.
 function mensagemCompra(contato) {
   let texto = `Olá ${contato.nome}! ${LANCAMENTO_LOTES.mensagemCompra}`;
-  if (layoutEstado.escolhas.length) {
+  const reserva = layoutEstado.minhaReserva;
+  if (reserva) {
+    const ate = Date.parse(reserva.ate);
+    texto += ` Reservei pelo site: ${juntarComE(layoutOrdenar(reserva.posicoes).map(layoutNome))} (código ${reserva.codigo}, válida até ${horaCurta(ate)} de ${dataCurta(ate)}).`;
+  } else if (layoutEstado.escolhas.length) {
     texto += ` No layout do ginásio, escolhi: ${juntarComE(layoutOrdenar(layoutEstado.escolhas).map(layoutNome))}.`;
   }
   return texto;
@@ -310,32 +393,49 @@ function mensagemCompra(contato) {
 
 function atualizarLinksCompra() {
   document.querySelectorAll("a[data-contato]").forEach((a) => {
-    const contato = CONTATOS_OFICIAIS[Number(a.dataset.contato)];
+    const contato = CONTATOS_OFICIAIS[Number(a.getAttribute("data-contato"))];
     if (contato) a.href = waLink(mensagemCompra(contato), contato.whatsapp);
   });
 }
 
-function layoutAtributos(nome, vendida) {
-  return vendida
-    ? `role="img" aria-label="${nome}, vendida"`
-    : `role="button" tabindex="0" aria-pressed="false" aria-label="${nome}"`;
+// ----- Desenho do mapa -----
+// Vendida em vermelho e reservada em amarelo (as mesmas cores da planilha da organização).
+const LAYOUT_OCUPADA = {
+  vendida: { rotulo: "VENDIDA", corpo: "#ebe6de", borda: "#9b958b", cadeira: "#e2ddd5", numero: "#6f6a62", faixa: "#c62828", letraFaixa: "#fff", letraChopeira: 22, letraMesa: 17 },
+  reservada: { rotulo: "RESERVADA", corpo: "#fff7dc", borda: "#7a5a00", cadeira: "#fbe7a6", numero: "#6b4e00", faixa: "#f6c344", letraFaixa: "#3d2a00", letraChopeira: 18, letraMesa: 13 },
+};
+
+function layoutAtributos(nome, situacao) {
+  // tabindex="-1": fica fora do Tab, mas o celular trata como alvo de toque (sem isso,
+  // o Chrome do Android desvia o toque numa vendida para a posição livre ao lado).
+  if (situacao === "vendida") return `role="img" tabindex="-1" aria-label="${nome}, vendida"`;
+  if (situacao === "reservada") return `role="img" tabindex="-1" aria-label="${nome}, reservada"`;
+  return `role="button" tabindex="0" aria-pressed="false" aria-label="${nome}"`;
 }
 
-function svgChopeira(item, vendida) {
+function svgChopeira(item, situacao) {
   const { num, x, y } = item;
-  if (vendida) {
-    // Vendida: número à esquerda e a inscrição VENDIDA em vermelho.
+  const ocupada = LAYOUT_OCUPADA[situacao];
+  if (ocupada) {
+    // Ocupada: número à esquerda e a inscrição VENDIDA ou RESERVADA.
     return `
-    <g class="lg-item lg-chopeira lg-vendida" data-chave="chopeira-${num}" ${layoutAtributos(`Chopeira ${num}`, true)}>
+    <g class="lg-item lg-chopeira lg-${situacao}" data-chave="chopeira-${num}" ${layoutAtributos(`Chopeira ${num}`, situacao)}>
       <rect class="lg-alvo" x="${x - 6}" y="${y - 6}" width="212" height="71" rx="12"/>
-      <rect x="${x}" y="${y}" width="200" height="59" rx="8" fill="#ebe6de" stroke="#9b958b" stroke-width="2.4"/>
-      <text class="lg-num-vendida" x="${x + 34}" y="${y + 41}" font-size="32" text-anchor="middle" fill="#6f6a62">${num}</text>
-      <rect x="${x + 66}" y="${y + 12}" width="126" height="35" rx="8" fill="#c62828"/>
-      <text x="${x + 129}" y="${y + 37}" font-size="22" text-anchor="middle" fill="#fff" letter-spacing="1">VENDIDA</text>
+      <rect x="${x}" y="${y}" width="200" height="59" rx="8" fill="${ocupada.corpo}" stroke="${ocupada.borda}" stroke-width="2.4"/>
+      <g class="lg-ocupada-palavra">
+        <text class="lg-num-ocupada" x="${x + 34}" y="${y + 41}" font-size="32" text-anchor="middle" fill="${ocupada.numero}">${num}</text>
+        <rect x="${x + 66}" y="${y + 12}" width="126" height="35" rx="8" fill="${ocupada.faixa}"/>
+        <text x="${x + 129}" y="${y + 37 - (22 - ocupada.letraChopeira) / 2}" font-size="${ocupada.letraChopeira}" text-anchor="middle" fill="${ocupada.letraFaixa}" letter-spacing="1">${ocupada.rotulo}</text>
+      </g>
+      <g class="lg-ocupada-cor">
+        <rect x="${x}" y="${y}" width="200" height="59" rx="8" fill="${ocupada.faixa}" stroke="${ocupada.borda}" stroke-width="3"/>
+        ${situacao === "reservada" ? `<rect x="${x}" y="${y}" width="200" height="59" rx="8" fill="url(#lg-listras)"/>` : ""}
+        <text x="${x + 100}" y="${y + 48}" font-size="52" text-anchor="middle" fill="${ocupada.letraFaixa}">${num}</text>
+      </g>
     </g>`;
   }
   return `
-    <g class="lg-item lg-chopeira" data-chave="chopeira-${num}" ${layoutAtributos(`Chopeira ${num}`, false)}>
+    <g class="lg-item lg-chopeira" data-chave="chopeira-${num}" ${layoutAtributos(`Chopeira ${num}`, "livre")}>
       <rect class="lg-alvo" x="${x - 6}" y="${y - 6}" width="212" height="71" rx="12"/>
       <rect class="lg-forma" x="${x}" y="${y}" width="200" height="59" rx="8" fill="url(#lg-barraca)" stroke="#1a1b29" stroke-width="2.4"/>
       <g class="lg-icone">
@@ -347,37 +447,45 @@ function svgChopeira(item, vendida) {
         <ellipse cx="${x + 33}" cy="${y + 28}" rx="8" ry="4" fill="#fff"/>
       </g>
       <text class="lg-texto lg-texto-longo" x="${x + 65}" y="${y + 38}" font-size="20" fill="#111322">Chopeira ${num}</text>
-      <text class="lg-texto lg-texto-curto" x="${x + 131}" y="${y + 44}" font-size="40" text-anchor="middle" fill="#111322">${num}</text>
+      <text class="lg-texto lg-texto-curto" x="${x + 131}" y="${y + 48}" font-size="52" text-anchor="middle" fill="#111322">${num}</text>
     </g>`;
 }
 
-function svgMesa(item, vendida) {
+function svgMesa(item, situacao) {
   const { num, x: cx, y: cy } = item;
   const cadeiras = `
         <rect x="${cx - 11}" y="${cy - 43}" width="22" height="15" rx="4"/>
         <rect x="${cx - 11}" y="${cy + 28}" width="22" height="15" rx="4"/>
         <rect x="${cx - 43}" y="${cy - 11}" width="16" height="22" rx="4"/>
         <rect x="${cx + 27}" y="${cy - 11}" width="16" height="22" rx="4"/>`;
-  if (vendida) {
-    // Vendida: mesa em cinza, número em cima e a faixa VENDIDA em vermelho.
+  const ocupada = LAYOUT_OCUPADA[situacao];
+  if (ocupada) {
+    // Ocupada: mesa apagada, número em cima e a faixa VENDIDA ou RESERVADA.
     return `
-    <g class="lg-item lg-mesa lg-vendida" data-chave="mesa-${num}" ${layoutAtributos(`Mesa ${num}`, true)}>
+    <g class="lg-item lg-mesa lg-${situacao}" data-chave="mesa-${num}" ${layoutAtributos(`Mesa ${num}`, situacao)}>
       <rect class="lg-alvo" x="${cx - 50}" y="${cy - 58}" width="100" height="116" rx="14"/>
-      <g fill="#e2ddd5" stroke="#9b958b" stroke-width="2.5">${cadeiras}</g>
-      <circle cx="${cx}" cy="${cy}" r="32" fill="#ebe6de" stroke="#9b958b" stroke-width="2.5"/>
-      <text class="lg-num-vendida" x="${cx}" y="${cy - 6}" font-size="26" text-anchor="middle" fill="#6f6a62">${num}</text>
-      <rect x="${cx - 47}" y="${cy + 4}" width="94" height="26" rx="6" fill="#c62828"/>
-      <text x="${cx}" y="${cy + 23}" font-size="17" text-anchor="middle" fill="#fff" letter-spacing=".5">VENDIDA</text>
+      <g fill="${ocupada.cadeira}" stroke="${ocupada.borda}" stroke-width="2.5">${cadeiras}</g>
+      <circle cx="${cx}" cy="${cy}" r="32" fill="${ocupada.corpo}" stroke="${ocupada.borda}" stroke-width="2.5"/>
+      <g class="lg-ocupada-palavra">
+        <text class="lg-num-ocupada" x="${cx}" y="${cy - 6}" font-size="26" text-anchor="middle" fill="${ocupada.numero}">${num}</text>
+        <rect x="${cx - 47}" y="${cy + 4}" width="94" height="26" rx="6" fill="${ocupada.faixa}"/>
+        <text x="${cx}" y="${cy + 23 - (17 - ocupada.letraMesa) / 2}" font-size="${ocupada.letraMesa}" text-anchor="middle" fill="${ocupada.letraFaixa}" letter-spacing=".5">${ocupada.rotulo}</text>
+      </g>
+      <g class="lg-ocupada-cor">
+        <circle cx="${cx}" cy="${cy}" r="32" fill="${ocupada.faixa}" stroke="${ocupada.borda}" stroke-width="3"/>
+        ${situacao === "reservada" ? `<circle cx="${cx}" cy="${cy}" r="32" fill="url(#lg-listras)"/>` : ""}
+        <text x="${cx}" y="${cy + 15}" font-size="42" text-anchor="middle" fill="${ocupada.letraFaixa}">${num}</text>
+      </g>
     </g>`;
   }
   return `
-    <g class="lg-item lg-mesa" data-chave="mesa-${num}" ${layoutAtributos(`Mesa ${num}`, false)}>
+    <g class="lg-item lg-mesa" data-chave="mesa-${num}" ${layoutAtributos(`Mesa ${num}`, "livre")}>
       <rect class="lg-alvo" x="${cx - 50}" y="${cy - 58}" width="100" height="116" rx="14"/>
       <g class="lg-cadeiras" fill="#f7dca7" stroke="#171d2c" stroke-width="2.5">${cadeiras}</g>
       <circle class="lg-forma" cx="${cx}" cy="${cy}" r="32" fill="#ffe3ad" stroke="#171d2c" stroke-width="2.5"/>
       <text class="lg-texto lg-texto-longo" x="${cx}" y="${cy - 1}" font-size="15" text-anchor="middle" fill="#171924">Mesa</text>
       <text class="lg-texto lg-texto-longo" x="${cx}" y="${cy + 20}" font-size="21" text-anchor="middle" fill="#171924">${num}</text>
-      <text class="lg-texto lg-texto-curto" x="${cx}" y="${cy + 13}" font-size="36" text-anchor="middle" fill="#171924">${num}</text>
+      <text class="lg-texto lg-texto-curto" x="${cx}" y="${cy + 15}" font-size="42" text-anchor="middle" fill="#171924">${num}</text>
     </g>`;
 }
 
@@ -388,8 +496,9 @@ function svgGinasioFixo() {
       <path d="M${x + 17} 160V215M${x + 110} 160V215" stroke="#10152a" stroke-width="3" fill="none"/>
       <path d="M${x + 17} 215A46.5 46.5 0 0 1 ${x + 63.5} 168A46.5 46.5 0 0 1 ${x + 110} 215" stroke="#10152a" stroke-width="3" fill="none"/>
       <rect x="${x}" y="226" width="129" height="54" rx="10" fill="#bbf2b7" stroke="#1b4c36" stroke-width="2.5"/>
-      <text x="${x + 64.5}" y="245" text-anchor="middle" fill="#163921" font-size="15">SAÍDA DE</text>
-      <text x="${x + 64.5}" y="263" text-anchor="middle" fill="#163921" font-size="15">EMERGÊNCIA</text>`;
+      <text class="lg-texto-longo" x="${x + 64.5}" y="245" text-anchor="middle" fill="#163921" font-size="15">SAÍDA DE</text>
+      <text class="lg-texto-longo" x="${x + 64.5}" y="263" text-anchor="middle" fill="#163921" font-size="15">EMERGÊNCIA</text>
+      <text class="lg-texto-curto" x="${x + 64.5}" y="262" text-anchor="middle" fill="#163921" font-size="26">SAÍDA</text>`;
   const banheiro = (y) => `
       <rect x="46" y="${y}" width="194" height="104" rx="10" fill="#e8cefb" stroke="#14182c" stroke-width="3" filter="url(#lg-sombra)"/>
       <g fill="#191c2a">
@@ -438,10 +547,13 @@ function svgGinasioFixo() {
     </g>`;
 }
 
-function criarSvgGinasio(vendidas) {
+// situacoes: { "chopeira-1": "livre" | "vendida" | "reservada", ... }
+function criarSvgGinasio(situacoes) {
   const itens = layoutItens();
-  const chopeiras = itens.filter((i) => i.tipo === "chopeira").map((i) => svgChopeira(i, vendidas.includes(`chopeira-${i.num}`))).join("");
-  const mesas = itens.filter((i) => i.tipo === "mesa").map((i) => svgMesa(i, vendidas.includes(`mesa-${i.num}`))).join("");
+  const desenhar = (i) => {
+    const situacao = situacoes[`${i.tipo}-${i.num}`] || "livre";
+    return i.tipo === "chopeira" ? svgChopeira(i, situacao) : svgMesa(i, situacao);
+  };
   return `
     <svg viewBox="12 140 1000 1366" width="1000" height="1366" role="group" aria-label="Layout do ginásio: palco no fundo, chopeiras nas paredes e mesas no centro" font-family="Mulish, Arial, sans-serif" font-weight="800">
       <defs>
@@ -449,19 +561,30 @@ function criarSvgGinasio(vendidas) {
         <linearGradient id="lg-palco" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4d3fc"/><stop offset="1" stop-color="#b778d8"/></linearGradient>
         <linearGradient id="lg-barraca" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8e7"/><stop offset="1" stop-color="#fff1d1"/></linearGradient>
         <filter id="lg-sombra"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#172036" flood-opacity=".14"/></filter>
+        <pattern id="lg-listras" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="14" fill="#3d2a00" fill-opacity=".22"/></pattern>
       </defs>
       ${svgGinasioFixo()}
-      ${chopeiras}
-      ${mesas}
+      ${itens.filter((i) => i.tipo === "chopeira").map(desenhar).join("")}
+      ${itens.filter((i) => i.tipo === "mesa").map(desenhar).join("")}
     </svg>`;
+}
+
+// Aceita [13, 14], 13, "13" ou "13, 14" (a lista é editada à mão no events.js).
+function listaDeNumeros(valor) {
+  const itens = Array.isArray(valor) ? valor : String(valor == null ? "" : valor).split(",");
+  return itens.map((n) => Number(String(n).trim())).filter((n) => Number.isInteger(n) && n > 0);
 }
 
 function criarBlocoLayout(layout) {
   if (!layout) return "";
-  const vendidas = (layout.chopeirasVendidas || [])
+  const vendidas = listaDeNumeros(layout.chopeirasVendidas)
     .map((n) => `chopeira-${n}`)
-    .concat((layout.mesasVendidas || []).map((n) => `mesa-${n}`))
+    .concat(listaDeNumeros(layout.mesasVendidas).map((n) => `mesa-${n}`))
     .filter(layoutChaveValida);
+  const situacoes = {};
+  vendidas.forEach((c) => {
+    situacoes[c] = "vendida";
+  });
   const botoesEnviar = CONTATOS_OFICIAIS.map(
     (c, i) => `
           <a class="botao botao-whatsapp" data-contato="${i}" href="${waLink(mensagemCompra(c), c.whatsapp)}" target="_blank" rel="noopener">
@@ -476,17 +599,29 @@ function criarBlocoLayout(layout) {
     </div>
     <p class="lg-intro">Veja onde vão ficar as chopeiras e as mesas e já escolha a posição que você quer para a hora da compra. <strong>Toque no layout para marcar.</strong></p>
     <div class="lg-grade">
-      <div class="lg-mapa" id="lg-mapa" data-vendidas="${vendidas.join(",")}">
-        ${criarSvgGinasio(vendidas)}
+      <div class="lg-mapa-caixa">
+        <div class="lg-mapa" id="lg-mapa" data-vendidas="${vendidas.join(",")}" data-planilha="${layout.planilhaVendidas || ""}">
+          ${criarSvgGinasio(situacoes)}
+        </div>
+        <button type="button" class="botao botao-secundario lg-ampliar" id="lg-ampliar">🔍 Ampliar o mapa</button>
       </div>
       <div class="lg-lateral">
         <div class="lg-painel">
-          <h5>Sua escolha</h5>
+          <h5 id="lg-painel-titulo" tabindex="-1">Sua escolha</h5>
           <p class="lg-vazio" id="lg-vazio">Nenhuma posição marcada ainda. Toque numa chopeira ou numa mesa no layout.</p>
           <p class="lg-perdidas" id="lg-perdidas" hidden></p>
+          <div class="lg-reserva" id="lg-reserva" hidden>
+            <p class="lg-reserva-titulo" id="lg-reserva-titulo" tabindex="-1">Reservado para você</p>
+            <p class="lg-reserva-prazo" id="lg-reserva-prazo"></p>
+            <p class="lg-reserva-codigo" id="lg-reserva-codigo"></p>
+          </div>
           <ul class="lg-escolhas" id="lg-escolhas"></ul>
+          <button type="button" class="botao lg-reservar" id="lg-reservar" hidden>Reservar por 1 hora</button>
           <div class="lg-enviar" id="lg-enviar" hidden>${botoesEnviar}</div>
-          <button type="button" class="lg-limpar" id="lg-limpar" hidden>Limpar escolha</button>
+          <div class="lg-acoes">
+            <button type="button" class="lg-limpar" id="lg-limpar" hidden>Limpar escolha</button>
+            <button type="button" class="lg-limpar" id="lg-cancelar" hidden>Cancelar reserva</button>
+          </div>
           <p class="lg-aviso" id="lg-aviso"></p>
         </div>
         <div class="lg-legenda">
@@ -494,20 +629,39 @@ function criarBlocoLayout(layout) {
             <li><strong>Chopeiras 1 a 13:</strong> parede da esquerda, entre os dois banheiros.</li>
             <li><strong>Chopeiras 14 a 18:</strong> parede da direita, entre o palco e o bar.</li>
             <li><strong>Mesas 1 a 20:</strong> no centro, em 4 fileiras de 5. A fileira das mesas 1 a 5 é a mais perto do palco.</li>
-            ${vendidas.length ? `<li><strong class="lg-legenda-vendida">VENDIDA</strong> posição que já foi vendida.</li>` : ""}
+            <li id="lg-legenda-reservada" hidden><strong class="lg-legenda-selo lg-legenda-reservada">RESERVADA</strong> posição segura para alguém. A reserva feita pelo site vale por 1 hora; se a compra não for confirmada com a Andréia ou a Raquel, a posição volta a ficar livre.</li>
+            <li id="lg-legenda-vendida"${vendidas.length ? "" : " hidden"}><strong class="lg-legenda-selo lg-legenda-vendida">VENDIDA</strong> posição que já foi vendida.</li>
           </ul>
           <p>Esquerda e direita de quem entra no ginásio, olhando para o palco.</p>
         </div>
-        ${layout.imagem ? `<a class="botao botao-secundario lg-ampliar" href="${layout.imagem}" target="_blank" rel="noopener">🔍 Ver o layout ampliado</a>` : ""}
       </div>
     </div>
     <p class="lg-status" id="lg-status" aria-live="polite"></p>
   `;
 }
 
+// ----- Guardar no aparelho -----
+function lerDoAparelho(chave) {
+  try {
+    return window.localStorage.getItem(chave);
+  } catch (erro) {
+    return null;
+  }
+}
+
+function gravarNoAparelho(chave, valor) {
+  try {
+    if (valor === null) window.localStorage.removeItem(chave);
+    else window.localStorage.setItem(chave, valor);
+    return true;
+  } catch (erro) {
+    return false;
+  }
+}
+
 function layoutLer() {
   try {
-    const salvo = JSON.parse(window.localStorage.getItem(LAYOUT_ARMAZENAMENTO) || "[]");
+    const salvo = JSON.parse(lerDoAparelho(LAYOUT_ARMAZENAMENTO) || "[]");
     return Array.isArray(salvo) ? salvo.filter((c) => typeof c === "string" && layoutChaveValida(c)) : [];
   } catch (erro) {
     return [];
@@ -515,53 +669,716 @@ function layoutLer() {
 }
 
 function layoutSalvar() {
+  layoutEstado.salvaNoAparelho = gravarNoAparelho(LAYOUT_ARMAZENAMENTO, JSON.stringify(layoutEstado.escolhas));
+}
+
+function layoutLerReserva() {
   try {
-    window.localStorage.setItem(LAYOUT_ARMAZENAMENTO, JSON.stringify(layoutEstado.escolhas));
-    layoutEstado.salvaNoAparelho = true;
+    const r = JSON.parse(lerDoAparelho(LAYOUT_RESERVA) || "null");
+    if (!r || typeof r.codigo !== "string" || !Array.isArray(r.posicoes) || isNaN(Date.parse(r.ate))) return null;
+    if (!r.posicoes.every(layoutChaveValida)) return null;
+    return r;
   } catch (erro) {
-    layoutEstado.salvaNoAparelho = false;
+    return null;
   }
 }
 
+function layoutSalvarReserva() {
+  gravarNoAparelho(LAYOUT_RESERVA, layoutEstado.minhaReserva ? JSON.stringify(layoutEstado.minhaReserva) : null);
+}
+
+function layoutDispositivo() {
+  if (layoutEstado.dispositivo) return layoutEstado.dispositivo;
+  let id = lerDoAparelho(LAYOUT_DISPOSITIVO);
+  if (!/^[a-f0-9]{32}$/.test(id || "")) {
+    const bytes = new Uint8Array(16);
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(bytes);
+    } else {
+      for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    id = Array.prototype.map.call(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    gravarNoAparelho(LAYOUT_DISPOSITIVO, id);
+  }
+  layoutEstado.dispositivo = id;
+  return id;
+}
+
+// ----- Situação de cada posição -----
+// Reserva de outra pessoa ainda valendo? (sem horário = reservada pela organização)
+function layoutReservadaPorOutro(chave) {
+  if (!Object.prototype.hasOwnProperty.call(layoutEstado.reservadas, chave)) return false;
+  const ate = layoutEstado.reservadas[chave];
+  return !ate || Date.parse(ate) > agoraServidor();
+}
+
+function layoutSituacoes() {
+  const minhas = layoutEstado.minhaReserva ? layoutEstado.minhaReserva.posicoes : [];
+  const situacoes = {};
+  layoutItens().forEach((i) => {
+    const chave = `${i.tipo}-${i.num}`;
+    if (layoutEstado.vendidas.indexOf(chave) !== -1) situacoes[chave] = "vendida";
+    else if (minhas.indexOf(chave) === -1 && layoutReservadaPorOutro(chave)) situacoes[chave] = "reservada";
+    else situacoes[chave] = "livre";
+  });
+  return situacoes;
+}
+
+function layoutRedesenharMapa() {
+  const mapa = document.getElementById("lg-mapa");
+  if (!mapa) return;
+  const situacoes = layoutSituacoes();
+  const assinatura = JSON.stringify(situacoes);
+  const mudou = assinatura !== layoutEstado.assinaturaMapa;
+  layoutEstado.assinaturaMapa = assinatura;
+  const valores = Object.keys(situacoes).map((c) => situacoes[c]);
+  const legendaVendida = document.getElementById("lg-legenda-vendida");
+  const legendaReservada = document.getElementById("lg-legenda-reservada");
+  if (legendaVendida) legendaVendida.hidden = valores.indexOf("vendida") === -1;
+  if (legendaReservada) legendaReservada.hidden = valores.indexOf("reservada") === -1;
+  layoutAvisarTudoVendido(valores.every((v) => v === "vendida"));
+  if (!mudou) return;
+
+  const ativo = document.activeElement;
+  const chaveFocada = ativo && mapa.contains(ativo) && ativo.getAttribute ? ativo.getAttribute("data-chave") : null;
+  mapa.innerHTML = criarSvgGinasio(situacoes);
+  layoutMarcarEscolhas(mapa);
+  if (chaveFocada) {
+    const item = mapa.querySelector(`.lg-item[data-chave="${chaveFocada}"][role="button"]`);
+    if (item) item.focus();
+  }
+  layoutDesenharZoom();
+}
+
+function layoutMarcarEscolhas(area) {
+  area.querySelectorAll('.lg-item[role="button"]').forEach((g) => {
+    g.setAttribute("aria-pressed", String(layoutEstado.escolhas.indexOf(g.getAttribute("data-chave")) !== -1));
+  });
+}
+
+// Todas as posições vendidas: troca os convites para escolher por um aviso neutro.
+function layoutAvisarTudoVendido(tudo) {
+  const intro = document.querySelector(".lg-intro");
+  const vazio = document.getElementById("lg-vazio");
+  if (!intro || !vazio) return;
+  if (!intro.getAttribute("data-original")) {
+    intro.setAttribute("data-original", intro.innerHTML);
+    vazio.setAttribute("data-original", vazio.textContent);
+  }
+  intro.innerHTML = tudo ? "Todas as chopeiras e mesas do layout já foram vendidas." : intro.getAttribute("data-original");
+  vazio.textContent = tudo ? "Todas as chopeiras e mesas do layout já foram vendidas." : vazio.getAttribute("data-original");
+}
+
+// ----- Mapa ampliado (tela cheia, com toque) -----
+function layoutAbrirZoom() {
+  let camada = document.getElementById("lg-zoom");
+  if (!camada) {
+    camada = document.createElement("div");
+    camada.id = "lg-zoom";
+    camada.className = "lg-zoom";
+    camada.setAttribute("role", "dialog");
+    camada.setAttribute("aria-modal", "true");
+    camada.setAttribute("aria-label", "Layout do ginásio ampliado");
+    camada.innerHTML = `
+      <div class="lg-zoom-barra">
+        <p>Toque nas posições para marcar e arraste para ver o resto. Depois toque em Fechar.</p>
+        <button type="button" class="lg-zoom-fechar" id="lg-zoom-fechar">Fechar ✕</button>
+      </div>
+      <div class="lg-zoom-area" id="lg-zoom-area"></div>`;
+    document.body.appendChild(camada);
+    document.getElementById("lg-zoom-fechar").addEventListener("click", layoutFecharZoom);
+    camada.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") layoutFecharZoom();
+    });
+    layoutLigarCliques(document.getElementById("lg-zoom-area"));
+  }
+  layoutEstado.zoomAberto = true;
+  camada.hidden = false;
+  document.documentElement.classList.add("lg-zoom-aberto");
+  Array.prototype.forEach.call(document.body.children, (el) => {
+    if (el !== camada && el.id !== "lg-toque" && !el.hasAttribute("inert")) {
+      el.setAttribute("inert", "");
+      el.setAttribute("data-lg-inerte", "");
+    }
+  });
+  if (!layoutEstado.escZoomLigado) {
+    layoutEstado.escZoomLigado = true;
+    document.addEventListener("keydown", (e) => {
+      if (layoutEstado.zoomAberto && (e.key === "Escape" || e.key === "Esc")) layoutFecharZoom();
+    });
+  }
+  layoutDesenharZoom();
+  document.getElementById("lg-zoom-fechar").focus();
+}
+
+function layoutDesenharZoom() {
+  const area = document.getElementById("lg-zoom-area");
+  if (!area || !layoutEstado.zoomAberto) return;
+  const ativo = document.activeElement;
+  const chaveFocada = ativo && area.contains(ativo) && ativo.getAttribute ? ativo.getAttribute("data-chave") : null;
+  // IDs próprios para os degradês, porque o mapa da página continua existindo.
+  area.innerHTML = criarSvgGinasio(layoutSituacoes()).replace(/lg-(papel|palco|barraca|sombra|listras)/g, "lgz-$1");
+  layoutMarcarEscolhas(area);
+  if (chaveFocada) {
+    const item = area.querySelector(`.lg-item[data-chave="${chaveFocada}"]`);
+    if (item) item.focus();
+    else document.getElementById("lg-zoom-fechar").focus();
+  }
+}
+
+function layoutFecharZoom() {
+  const camada = document.getElementById("lg-zoom");
+  if (!camada) return;
+  layoutEstado.zoomAberto = false;
+  camada.hidden = true;
+  document.documentElement.classList.remove("lg-zoom-aberto");
+  document.querySelectorAll("[data-lg-inerte]").forEach((el) => {
+    el.removeAttribute("inert");
+    el.removeAttribute("data-lg-inerte");
+  });
+  const botao = document.getElementById("lg-ampliar");
+  if (botao) botao.focus();
+}
+
+// Mensagem no topo do painel: "alerta" (vermelho) ou "info" (neutra).
+function layoutAvisoPainel(texto, tipo) {
+  const aviso = document.getElementById("lg-perdidas");
+  aviso.textContent = texto;
+  aviso.classList.toggle("lg-info", tipo === "info");
+  aviso.hidden = false;
+  document.getElementById("lg-status").textContent = texto;
+}
+
+// Escolhas do visitante que ficaram indisponíveis. Só a reserva feita pelo site
+// (que tem horário) é "de outra pessoa"; a RESERVADA da planilha é da organização
+// e pode ser justamente para quem está vendo.
+function layoutMostrarPerdidas(lista) {
+  const grupo = (situacao) => lista.filter((p) => p.situacao === situacao).map((p) => p.chave);
+  const nomes = (chaves) => juntarComE(layoutOrdenar(chaves).map(layoutNome));
+  const vendidas = grupo("vendida");
+  const doSite = grupo("reservada");
+  const daOrganizacao = grupo("reservada-org");
+  const frases = [];
+  if (vendidas.length) {
+    frases.push(vendidas.length === 1 ? `${nomes(vendidas)}, marcada neste aparelho, agora aparece como vendida.` : `${nomes(vendidas)}, marcadas neste aparelho, agora aparecem como vendidas.`);
+  }
+  if (daOrganizacao.length) {
+    frases.push(`A organização segurou ${nomes(daOrganizacao)}. Se foi para você, está tudo certo; em caso de dúvida, fale com a Andréia ou a Raquel.`);
+  }
+  if (doSite.length) {
+    frases.push(doSite.length === 1 ? `${nomes(doSite)} acabou de ser reservada por outra pessoa.` : `${nomes(doSite)} acabaram de ser reservadas por outra pessoa.`);
+    frases.push("Escolha outra posição no layout.");
+  }
+  if (!frases.length) return;
+  layoutAvisoPainel(frases.join(" "), doSite.length ? "alerta" : "info");
+}
+
+// Aplica a situação vinda do servidor (ou da planilha, se o servidor estiver fora do ar).
+function layoutAplicarSituacao(vendidasPlanilha, reservadas) {
+  const vendidas = layoutEstado.vendidasBase.slice();
+  vendidasPlanilha.forEach((c) => {
+    if (vendidas.indexOf(c) === -1) vendidas.push(c);
+  });
+  layoutEstado.vendidas = vendidas;
+  layoutEstado.reservadas = reservadas;
+
+  // Posições da reserva deste aparelho que viraram VENDIDA na planilha. Pode ser a
+  // compra desta pessoa ou uma venda por fora: o site não sabe, então não afirma.
+  const minha = layoutEstado.minhaReserva;
+  if (minha) {
+    const vendidasMinhas = minha.posicoes.filter((p) => vendidas.indexOf(p) !== -1);
+    if (vendidasMinhas.length) {
+      const restantes = minha.posicoes.filter((p) => vendidasMinhas.indexOf(p) === -1);
+      layoutEstado.escolhas = layoutEstado.escolhas.filter((c) => vendidasMinhas.indexOf(c) === -1);
+      layoutSalvar();
+      const nomes = juntarComE(layoutOrdenar(vendidasMinhas).map(layoutNome));
+      let texto = vendidasMinhas.length === 1 ? `${nomes} agora aparece como VENDIDA.` : `${nomes} agora aparecem como VENDIDAS.`;
+      texto += " Se você já combinou a compra com a Andréia ou a Raquel, está tudo certo. Se não, fale com elas.";
+      if (restantes.length) {
+        layoutEstado.minhaReserva = Object.assign({}, minha, { posicoes: restantes });
+        texto += ` Sua reserva continua com ${juntarComE(layoutOrdenar(restantes).map(layoutNome))}.`;
+      } else {
+        layoutEstado.minhaReserva = null;
+      }
+      layoutSalvarReserva();
+      layoutAvisoPainel(texto, "info");
+    }
+  }
+
+  const minhas = layoutEstado.minhaReserva ? layoutEstado.minhaReserva.posicoes : [];
+  const perdidas = [];
+  layoutEstado.escolhas.forEach((c) => {
+    if (minhas.indexOf(c) !== -1) return;
+    if (vendidas.indexOf(c) !== -1) perdidas.push({ chave: c, situacao: "vendida" });
+    else if (layoutReservadaPorOutro(c)) perdidas.push({ chave: c, situacao: reservadas[c] ? "reservada" : "reservada-org" });
+  });
+  if (perdidas.length) {
+    const fora = perdidas.map((p) => p.chave);
+    layoutEstado.escolhas = layoutEstado.escolhas.filter((c) => fora.indexOf(c) === -1);
+    layoutSalvar();
+    layoutMostrarPerdidas(perdidas);
+    const primeira = perdidas[0];
+    layoutMostrarToque(primeira.chave, primeira.situacao === "reservada" ? "reservada-agora" : primeira.situacao);
+  }
+  layoutRedesenharMapa();
+  layoutAtualizarPainel();
+}
+
+function layoutAplicarServidor(dados, idade) {
+  if (dados.agora) layoutAjustarRelogio(dados.agora, idade);
+  layoutEstado.reservasLigadas = dados.reservasLigadas !== false;
+  layoutEstado.planilhaOk = dados.planilhaOk !== false;
+  const reservadas = {};
+  (dados.reservadasPlanilha || []).forEach((c) => {
+    if (layoutChaveValida(c)) reservadas[c] = "";
+  });
+  (dados.reservas || []).forEach((r) => {
+    if (r && layoutChaveValida(r.posicao)) reservadas[r.posicao] = r.ate;
+  });
+
+  const minha = layoutEstado.minhaReserva;
+  if (minha) {
+    const noServidor = minha.posicoes.every((p) => reservadas[p] === minha.ate);
+    const recente = Date.now() - (minha.desde || 0) < 30000; // o servidor pode demorar alguns segundos para mostrar
+    if (noServidor || recente) {
+      minha.posicoes.forEach((p) => {
+        if (reservadas[p] === minha.ate || recente) delete reservadas[p];
+      });
+    } else if (Date.parse(minha.ate) > agoraServidor()) {
+      // Sumiu do servidor antes da hora (cancelada em outra aba ou aparelho).
+      layoutEstado.minhaReserva = null;
+      layoutSalvarReserva();
+    }
+  }
+  layoutAplicarSituacao((dados.vendidas || []).filter(layoutChaveValida), reservadas);
+}
+
+// ----- Planilha do Google (plano B quando o serviço de reservas não responde) -----
+function layoutUrlPlanilha(planilha) {
+  // Aceita o ID da planilha ou um endereço de CSV (usado nos testes).
+  const base =
+    planilha.indexOf("/") === -1
+      ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(planilha)}/gviz/tq?tqx=out:csv&headers=1`
+      : planilha;
+  return `${base}${base.indexOf("?") === -1 ? "?" : "&"}_=${Date.now()}`;
+}
+
+function lerCsv(texto) {
+  const linhas = [];
+  let linha = [];
+  let campo = "";
+  let aspas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto.charAt(i);
+    if (aspas) {
+      if (c === '"' && texto.charAt(i + 1) === '"') {
+        campo += '"';
+        i++;
+      } else if (c === '"') {
+        aspas = false;
+      } else {
+        campo += c;
+      }
+    } else if (c === '"') {
+      aspas = true;
+    } else if (c === ",") {
+      linha.push(campo);
+      campo = "";
+    } else if (c === "\n" || c === "\r") {
+      if (c === "\r" && texto.charAt(i + 1) === "\n") i++;
+      linha.push(campo);
+      linhas.push(linha);
+      linha = [];
+      campo = "";
+    } else {
+      campo += c;
+    }
+  }
+  if (campo !== "" || linha.length) {
+    linha.push(campo);
+    linhas.push(linha);
+  }
+  return linhas;
+}
+
+// Mesma regra do servidor: Situação = Livre / RESERVADA / VENDIDA; linha
+// "Reservas pelo site" = LIGADAS / DESLIGADAS. Devolve null se não for a planilha.
+function planilhaDoCsv(texto) {
+  const limpo = String(texto || "").replace(/^﻿/, "");
+  if (/<html|<!doctype/i.test(limpo.slice(0, 600))) return null; // página de login ou de erro
+  const vendidas = [];
+  const reservadas = [];
+  let reservasLigadas = true;
+  let comSituacao = 0;
+  lerCsv(limpo).forEach((colunas) => {
+    const rotulo = (colunas[0] || "").trim();
+    const valor = (colunas[1] || "").trim().toLowerCase();
+    if (/^reservas pelo site$/i.test(rotulo)) {
+      reservasLigadas = !/^deslig/.test(valor);
+      return;
+    }
+    const posicao = /^(chopeira|mesa)\s*(\d{1,2})$/i.exec(rotulo);
+    if (!posicao) return;
+    const chave = `${posicao[1].toLowerCase()}-${Number(posicao[2])}`;
+    if (!layoutChaveValida(chave)) return;
+    if (valor) comSituacao++;
+    if (/^vend/.test(valor) && vendidas.indexOf(chave) === -1) vendidas.push(chave);
+    else if (/^reserv/.test(valor) && reservadas.indexOf(chave) === -1) reservadas.push(chave);
+  });
+  // Sem nenhuma Situação preenchida a planilha está fora do formato: mantém o mapa como está.
+  return comSituacao ? { vendidas, reservadas, reservasLigadas } : null;
+}
+
+function buscarComLimite(url, opcoes, ms) {
+  let limite = null;
+  const extras = Object.assign({ cache: "no-store" }, opcoes || {});
+  if (window.AbortController) {
+    const controle = new AbortController();
+    extras.signal = controle.signal;
+    limite = setTimeout(() => controle.abort(), ms);
+  }
+  return fetch(url, extras).then(
+    (resposta) => {
+      clearTimeout(limite);
+      return resposta;
+    },
+    (erro) => {
+      clearTimeout(limite);
+      throw erro;
+    }
+  );
+}
+
+function layoutBuscarPlanilhaDireto() {
+  if (!layoutEstado.planilha) return Promise.resolve();
+  return buscarComLimite(layoutUrlPlanilha(layoutEstado.planilha), {}, 10000)
+    .then((resposta) => (resposta.ok ? resposta.text() : Promise.reject(new Error(`HTTP ${resposta.status}`))))
+    .then((texto) => {
+      const dados = planilhaDoCsv(texto);
+      if (!dados) return;
+      layoutEstado.reservasLigadas = dados.reservasLigadas;
+      const reservadas = {};
+      dados.reservadas.forEach((c) => {
+        reservadas[c] = "";
+      });
+      layoutAplicarSituacao(dados.vendidas, reservadas);
+    })
+    .catch(() => {
+      // Planilha fechada, fora do ar ou sem internet: o mapa segue como está.
+    });
+}
+
+// Lê a situação das posições: primeiro o serviço de reservas; se ele não
+// responder, a planilha direto.
+function layoutBuscarEstado(forcar) {
+  if (!window.fetch || layoutEstado.buscando) return;
+  if (!forcar && Date.now() - layoutEstado.ultimaBusca < 8000) return;
+  layoutEstado.buscando = true;
+  layoutEstado.ultimaBusca = Date.now();
+  let idade = 0;
+  buscarComLimite(LAYOUT_API, {}, 8000)
+    .then((resposta) => {
+      idade = Number(resposta.headers.get("age")) || 0;
+      return resposta.ok ? resposta.json() : Promise.reject(new Error(`HTTP ${resposta.status}`));
+    })
+    .then((dados) => {
+      if (!dados || !Array.isArray(dados.reservas)) throw new Error("resposta inesperada");
+      if (layoutEstado.apiOk === false) layoutEstado.erroReserva = ""; // o serviço voltou
+      layoutEstado.apiOk = true;
+      layoutEstado.falhasApi = 0;
+      layoutAplicarServidor(dados, idade);
+    })
+    .catch(() => {
+      layoutEstado.falhasApi++;
+      // Uma falha solta não troca a tela; duas seguidas, sim.
+      if (layoutEstado.falhasApi >= 2 || layoutEstado.apiOk === null) layoutEstado.apiOk = false;
+      layoutAtualizarPainel();
+      return layoutBuscarPlanilhaDireto();
+    })
+    .then(() => {
+      layoutEstado.buscando = false;
+    });
+}
+
+// Consulta o servidor só com a aba na frente, o mapa na tela (ou uma reserva viva),
+// alguém mexendo na página nos últimos 10 min e antes do fim do baile. Cada
+// consulta gasta créditos do Netlify.
+function layoutDeveBuscar() {
+  if (document.hidden || Date.now() > LAYOUT_FIM) return false;
+  if (Date.now() - layoutEstado.ultimaInteracao > 10 * 60 * 1000) return false;
+  return layoutEstado.mapaVisivel || Boolean(layoutEstado.minhaReserva);
+}
+
+function layoutAgendarBusca() {
+  clearTimeout(layoutEstado.timerBusca);
+  // Depois da abertura das vendas a situação muda rápido: lê a cada 20 s.
+  const intervalo = layoutEstado.vendasAbertas ? 20000 : 45000;
+  layoutEstado.timerBusca = setTimeout(() => {
+    if (layoutDeveBuscar()) layoutBuscarEstado();
+    layoutAgendarBusca();
+  }, intervalo);
+}
+
+function layoutVigiarUso(grade) {
+  const marcarUso = () => {
+    const parada = Date.now() - layoutEstado.ultimaInteracao > 10 * 60 * 1000;
+    layoutEstado.ultimaInteracao = Date.now();
+    if (parada && layoutDeveBuscar()) layoutBuscarEstado(); // voltou depois de um tempo parado
+  };
+  ["pointerdown", "keydown", "scroll", "touchstart"].forEach((evento) => {
+    window.addEventListener(evento, marcarUso, { passive: true });
+  });
+  if (window.IntersectionObserver) {
+    new IntersectionObserver((entradas) => {
+      const visivel = entradas.some((e) => e.isIntersecting);
+      const apareceu = visivel && !layoutEstado.mapaVisivel;
+      layoutEstado.mapaVisivel = visivel;
+      if (apareceu && layoutDeveBuscar()) layoutBuscarEstado();
+    }).observe(grade);
+  } else {
+    layoutEstado.mapaVisivel = true;
+  }
+}
+
+// Libera no mapa, na hora certa, as reservas de outras pessoas que venceram.
+function layoutVigiarVencimentos() {
+  setInterval(() => {
+    if (!document.hidden && (layoutEstado.mapaVisivel || layoutEstado.zoomAberto) && Object.keys(layoutEstado.reservadas).length) layoutRedesenharMapa();
+  }, 5000);
+}
+
+// ----- Reserva -----
+function layoutReservasPossiveis() {
+  return (
+    layoutEstado.vendasAbertas &&
+    layoutEstado.apiOk !== false &&
+    layoutEstado.reservasLigadas &&
+    layoutEstado.planilhaOk &&
+    !layoutEstado.reservaBloqueada
+  );
+}
+
+function layoutPedirAoServidor(corpo) {
+  return buscarComLimite(
+    LAYOUT_API,
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) },
+    15000
+  ).then((resposta) =>
+    resposta
+      .json()
+      .catch(() => ({}))
+      .then((dados) => ({ status: resposta.status, dados: dados || {} }))
+  );
+}
+
+function layoutReservar() {
+  if (layoutEstado.reservando) return;
+  const posicoes = layoutOrdenar(layoutEstado.escolhas);
+  if (!posicoes.length) return;
+  if (posicoes.length > LAYOUT_MAX_POSICOES) {
+    layoutEstado.erroReserva = `Reserve até ${LAYOUT_MAX_POSICOES} posições de cada vez. Desmarque algumas e tente de novo.`;
+    layoutAtualizarPainel();
+    return;
+  }
+  layoutEstado.reservando = true;
+  layoutEstado.erroReserva = "";
+  layoutAtualizarPainel();
+
+  const pedido = { acao: "reservar", posicoes, dispositivo: layoutDispositivo() };
+  // Se o servidor estiver muito disputado (503), tenta mais uma vez depois de 1,5 s.
+  layoutPedirAoServidor(pedido)
+    .then((r) =>
+      r.status === 503 && r.dados.motivo !== "planilha"
+        ? new Promise((ok) => setTimeout(ok, 1500)).then(() => layoutPedirAoServidor(pedido))
+        : r
+    )
+    .then((r) => {
+      layoutEstado.reservando = false;
+      if (r.dados.agora) layoutAjustarRelogio(r.dados.agora);
+      if (r.status === 200 && r.dados.ok && r.dados.reserva) {
+        layoutEstado.apiOk = true;
+        layoutEstado.falhasApi = 0;
+        layoutEstado.minhaReserva = Object.assign({}, r.dados.reserva, { desde: Date.now() });
+        layoutSalvarReserva();
+        layoutEstado.escolhas = r.dados.reserva.posicoes.slice();
+        layoutSalvar();
+        layoutEstado.minhaReserva.posicoes.forEach((p) => delete layoutEstado.reservadas[p]);
+        document.getElementById("lg-perdidas").hidden = true;
+        layoutRedesenharMapa();
+        layoutAtualizarPainel();
+        const ate = Date.parse(r.dados.reserva.ate);
+        layoutMostrarAviso(`Reservado até ${horaCurta(ate)} ✓`, "Agora envie para a Andréia ou a Raquel.");
+        // Leva os botões de WhatsApp para a tela e o foco para a caixa da reserva.
+        const enviar = document.getElementById("lg-enviar");
+        if (enviar.scrollIntoView) enviar.scrollIntoView({ block: "nearest" });
+        document.getElementById("lg-reserva-titulo").focus();
+        document.getElementById("lg-status").textContent = `Reserva feita: ${juntarComE(layoutOrdenar(posicoes).map(layoutNome))}, até ${horaCurta(ate)}. Código ${r.dados.reserva.codigo}.`;
+        layoutIniciarContagemReserva();
+        return;
+      }
+      if (r.status === 409 && Array.isArray(r.dados.ocupadas)) {
+        const perdidas = [];
+        r.dados.ocupadas.forEach((o) => {
+          if (!o || !layoutChaveValida(o.posicao)) return;
+          if (o.situacao === "vendida") {
+            if (layoutEstado.vendidas.indexOf(o.posicao) === -1) layoutEstado.vendidas.push(o.posicao);
+          } else {
+            layoutEstado.reservadas[o.posicao] = o.ate || "";
+          }
+          perdidas.push({ chave: o.posicao, situacao: o.situacao });
+        });
+        const fora = perdidas.map((p) => p.chave);
+        layoutEstado.escolhas = layoutEstado.escolhas.filter((c) => fora.indexOf(c) === -1);
+        layoutSalvar();
+        layoutMostrarPerdidas(perdidas);
+        if (perdidas.length) layoutMostrarToque(perdidas[0].chave, perdidas[0].situacao === "vendida" ? "vendida" : "reservada-agora");
+        layoutRedesenharMapa();
+        layoutAtualizarPainel();
+        layoutBuscarEstado(true);
+        return;
+      }
+      if (r.status === 403 && r.dados.motivo === "pausadas") {
+        layoutEstado.reservasLigadas = false;
+      } else if (r.status === 403 && r.dados.motivo === "fechado") {
+        layoutEstado.erroReserva = `As reservas abrem em ${LANCAMENTO_LOTES.label}.`;
+      } else if (r.status === 503 && r.dados.motivo === "planilha") {
+        layoutEstado.planilhaOk = false;
+      } else if (r.status === 429) {
+        layoutEstado.reservaBloqueada = true;
+        layoutEstado.erroReserva = "Muitas posições já foram reservadas a partir desta mesma internet (Wi-Fi ou operadora). Envie sua escolha para a Andréia ou a Raquel.";
+      } else if (r.status === 400 && r.dados.motivo === "muitas") {
+        layoutEstado.erroReserva = `Reserve até ${LAYOUT_MAX_POSICOES} posições de cada vez.`;
+      } else {
+        // Serviço fora do ar: a pessoa ainda pode mandar a escolha pelo WhatsApp.
+        layoutEstado.apiOk = false;
+        layoutEstado.erroReserva = "Não foi possível reservar agora. Envie sua escolha para a Andréia ou a Raquel, que elas conferem se as posições estão livres.";
+      }
+      layoutAtualizarPainel();
+    })
+    .catch(() => {
+      layoutEstado.reservando = false;
+      layoutEstado.apiOk = false;
+      layoutEstado.erroReserva = "Não foi possível reservar agora. Envie sua escolha para a Andréia ou a Raquel, que elas conferem se as posições estão livres.";
+      layoutAtualizarPainel();
+    });
+}
+
+function layoutCancelarReserva() {
+  const reserva = layoutEstado.minhaReserva;
+  if (!reserva) return;
+  layoutPedirAoServidor({ acao: "cancelar", dispositivo: layoutDispositivo() }).catch(() => {});
+  layoutEstado.minhaReserva = null;
+  layoutSalvarReserva();
+  layoutEstado.escolhas = [];
+  layoutSalvar();
+  layoutRedesenharMapa();
+  layoutAtualizarPainel();
+  layoutMostrarAviso("Reserva cancelada", "As posições voltaram a ficar livres.");
+  document.getElementById("lg-status").textContent = "Reserva cancelada. As posições voltaram a ficar livres.";
+  setTimeout(() => layoutBuscarEstado(true), 1500);
+}
+
+// Atualiza o "faltam X minutos" e solta a reserva quando o horário passa.
+function layoutIniciarContagemReserva() {
+  clearInterval(layoutEstado.timerContagem);
+  const passo = () => {
+    const reserva = layoutEstado.minhaReserva;
+    if (!reserva) {
+      clearInterval(layoutEstado.timerContagem);
+      return;
+    }
+    const ate = Date.parse(reserva.ate);
+    if (agoraServidor() >= ate) {
+      clearInterval(layoutEstado.timerContagem);
+      layoutEstado.minhaReserva = null;
+      layoutSalvarReserva();
+      layoutAvisoPainel(`Sua reserva pelo site expirou às ${horaCurta(ate)}. Se as posições continuarem livres no mapa, você pode reservar de novo.`, "info");
+      layoutMostrarAviso("Sua reserva expirou", "Confira o mapa antes de reservar de novo.");
+      layoutRedesenharMapa();
+      layoutBuscarEstado(true);
+    }
+    layoutAtualizarPainel();
+  };
+  passo();
+  layoutEstado.timerContagem = setInterval(passo, 15000);
+}
+
+// ----- Painel "Sua escolha" -----
 function layoutAtualizarPainel(chaveNova) {
   const lista = document.getElementById("lg-escolhas");
   if (!lista) return;
 
+  const reserva = layoutEstado.minhaReserva;
+  const minhas = reserva ? reserva.posicoes : [];
   const escolhas = layoutOrdenar(layoutEstado.escolhas);
   const vazio = escolhas.length === 0;
+  const possiveis = layoutReservasPossiveis();
+  const mudouEscolha = Boolean(reserva) && !layoutMesmaLista(escolhas, minhas);
+
   lista.innerHTML = escolhas
     .map(
       (chave) => `
-      <li class="lg-escolha${chave === chaveNova ? " lg-nova" : ""}">
-        <div><strong>${layoutNome(chave)}</strong><span>${layoutPosicao(chave)}</span></div>
+      <li class="lg-escolha${chave === chaveNova ? " lg-nova" : ""}${minhas.indexOf(chave) !== -1 ? " lg-escolha-reservada" : ""}">
+        <div><strong>${layoutNome(chave)}</strong>${
+          reserva ? (minhas.indexOf(chave) !== -1 ? '<em class="lg-selo">Reservada</em>' : '<em class="lg-selo lg-selo-nova">Nova</em>') : ""
+        }<span>${layoutPosicao(chave)}</span></div>
         <button type="button" class="lg-remover" data-chave="${chave}" aria-label="Desmarcar ${layoutNome(chave)}">×</button>
       </li>`
     )
     .join("");
 
-  document.getElementById("lg-vazio").hidden = !vazio;
-  document.getElementById("lg-limpar").hidden = vazio;
-  document.getElementById("lg-enviar").hidden = vazio || !layoutEstado.vendasAbertas;
+  document.getElementById("lg-vazio").hidden = !vazio || Boolean(reserva);
+  const caixa = document.getElementById("lg-reserva");
+  caixa.hidden = !reserva;
+  if (reserva) {
+    const ate = Date.parse(reserva.ate);
+    document.getElementById("lg-reserva-prazo").textContent = `Até ${horaCurta(ate)} de ${dataCurta(ate)} · ${textoFaltam(ate)}`;
+    document.getElementById("lg-reserva-codigo").textContent = `Código da reserva: ${reserva.codigo}`;
+  }
+
+  const botaoReservar = document.getElementById("lg-reservar");
+  botaoReservar.hidden = !(possiveis && !vazio && (!reserva || mudouEscolha));
+  botaoReservar.disabled = layoutEstado.reservando;
+  botaoReservar.textContent = layoutEstado.reservando ? "Reservando..." : reserva ? "Atualizar reserva" : "Reservar por 1 hora";
+
+  // Depois da abertura: envia a reserva; sem reserva possível, envia a escolha.
+  document.getElementById("lg-enviar").hidden = !layoutEstado.vendasAbertas || (reserva ? false : possiveis || vazio);
+  document.getElementById("lg-limpar").hidden = vazio || Boolean(reserva);
+  document.getElementById("lg-cancelar").hidden = !reserva;
 
   let aviso;
   if (!layoutEstado.vendasAbertas) {
-    aviso = `Marcar no layout não reserva o lugar. Na abertura das vendas, em ${LANCAMENTO_LOTES.label}, aparecem aqui os botões para enviar sua escolha pelo WhatsApp da Andréia ou da Raquel.`;
+    aviso = `Marcar no layout não reserva o lugar. Na abertura das vendas, em ${LANCAMENTO_LOTES.label}, você poderá reservar por 1 hora as posições marcadas e enviar pelo WhatsApp da Andréia ou da Raquel.`;
+  } else if (reserva && vazio) {
+    aviso = "Você desmarcou todas as posições. Toque em Cancelar reserva para liberá-las.";
+  } else if (reserva) {
+    const ate = Date.parse(reserva.ate);
+    aviso = `Envie agora para a Andréia ou a Raquel e confirme a compra até ${horaCurta(ate)}. Depois desse horário a reserva cai e as posições voltam a ficar livres para outras pessoas.`;
+    if (mudouEscolha) aviso += " Você mudou a escolha: toque em Atualizar reserva para segurar as novas posições (o horário não muda).";
+  } else if (layoutEstado.erroReserva) {
+    aviso = layoutEstado.erroReserva;
+  } else if (!layoutEstado.reservasLigadas) {
+    aviso = "As reservas pelo site estão pausadas pela organização. Envie sua escolha para a Andréia ou a Raquel.";
+  } else if (!layoutEstado.planilhaOk) {
+    aviso = "A reserva pelo site está indisponível agora. Envie sua escolha para a Andréia ou a Raquel, que elas conferem se as posições estão livres.";
+  } else if (layoutEstado.apiOk === false) {
+    aviso = "A reserva pelo site está fora do ar agora. Envie sua escolha para a Andréia ou a Raquel, que elas conferem se as posições estão livres.";
   } else if (vazio) {
-    aviso = "Marque as posições que você quer para enviar sua escolha pelo WhatsApp da Andréia ou da Raquel.";
+    aviso = "Toque nas posições que você quer e depois em Reservar. A reserva segura as posições por 1 hora para você confirmar a compra com a Andréia ou a Raquel.";
   } else {
-    aviso = "Marcar no layout não reserva o lugar: envie sua escolha e combine a compra com a Andréia ou a Raquel.";
+    aviso = `A reserva segura as posições por 1 hora para você confirmar a compra com a Andréia ou a Raquel. Até ${LAYOUT_MAX_POSICOES} posições por reserva.`;
   }
-  if (!vazio && layoutEstado.salvaNoAparelho) aviso += " Sua escolha fica salva neste aparelho.";
+  if (!vazio && !reserva && layoutEstado.salvaNoAparelho && !layoutEstado.vendasAbertas) aviso += " Sua escolha fica salva neste aparelho.";
   document.getElementById("lg-aviso").textContent = aviso;
 
   document.querySelectorAll('.lg-item[role="button"]').forEach((g) => {
-    g.setAttribute("aria-pressed", String(layoutEstado.escolhas.indexOf(g.dataset.chave) !== -1));
+    g.setAttribute("aria-pressed", String(layoutEstado.escolhas.indexOf(g.getAttribute("data-chave")) !== -1));
   });
   atualizarLinksCompra();
 }
 
-// Aviso rápido no pé da tela: no celular o painel "Sua escolha" fica abaixo do mapa.
-function layoutMostrarToque(chave, marcado) {
+// ----- Avisos rápidos no pé da tela (no celular o painel fica abaixo do mapa) -----
+function layoutMostrarAviso(titulo, detalhe) {
   let toque = document.getElementById("lg-toque");
   if (!toque) {
     toque = document.createElement("div");
@@ -570,20 +1387,35 @@ function layoutMostrarToque(chave, marcado) {
     toque.setAttribute("aria-hidden", "true");
     document.body.appendChild(toque);
   }
-  if (marcado === "vendida") {
-    toque.innerHTML = `<strong>${layoutNome(chave)}</strong> já foi vendida<span>Escolha outra posição no layout.</span>`;
-  } else {
-    toque.innerHTML = marcado
-      ? `<strong>${layoutNome(chave)}</strong> marcada ✓<span>${layoutPosicao(chave)}</span>`
-      : `<strong>${layoutNome(chave)}</strong> desmarcada`;
-  }
+  toque.innerHTML = `<strong>${titulo}</strong>${detalhe ? `<span>${detalhe}</span>` : ""}`;
   toque.classList.add("visivel");
   clearTimeout(layoutEstado.timerToque);
-  layoutEstado.timerToque = setTimeout(() => toque.classList.remove("visivel"), 2600);
+  layoutEstado.timerToque = setTimeout(() => toque.classList.remove("visivel"), 2800);
+}
+
+function layoutMostrarToque(chave, estado) {
+  const nome = layoutNome(chave);
+  if (estado === "vendida") {
+    layoutMostrarAviso(`${nome} já foi vendida`, "");
+  } else if (estado === "reservada-agora") {
+    layoutMostrarAviso(`${nome} acabou de ser reservada`, "Escolha outra posição no layout.");
+  } else if (estado === "reservada-org") {
+    layoutMostrarAviso(`${nome} está reservada`, "Reservada pela organização.");
+  } else if (estado === "reservada") {
+    const ate = layoutEstado.reservadas[chave];
+    if (ate) layoutMostrarAviso(`${nome} está reservada até ${horaCurta(Date.parse(ate))}`, "Se a compra não for confirmada até lá, ela volta a ficar livre.");
+    else layoutMostrarAviso(`${nome} está reservada`, "Reservada pela organização.");
+  } else if (estado) {
+    layoutMostrarAviso(`${nome} marcada ✓`, layoutPosicao(chave));
+  } else {
+    layoutMostrarAviso(`${nome} desmarcada`, "");
+  }
 }
 
 function layoutAlternar(chave) {
-  if (!layoutChaveValida(chave) || layoutEstado.vendidas.indexOf(chave) !== -1) return;
+  if (!layoutChaveValida(chave)) return;
+  const situacao = layoutSituacoes()[chave];
+  if (situacao !== "livre") return;
   const posicao = layoutEstado.escolhas.indexOf(chave);
   const marcado = posicao === -1;
   if (marcado) {
@@ -591,6 +1423,8 @@ function layoutAlternar(chave) {
   } else {
     layoutEstado.escolhas.splice(posicao, 1);
   }
+  layoutEstado.erroReserva = "";
+  layoutEstado.reservaBloqueada = false;
   layoutSalvar();
   layoutAtualizarPainel(marcado ? chave : null);
   layoutMostrarToque(chave, marcado);
@@ -599,62 +1433,118 @@ function layoutAlternar(chave) {
     : `${layoutNome(chave)} desmarcada.`;
 }
 
+// Toque/clique e teclado num mapa (o da página ou o ampliado).
+function layoutLigarCliques(area) {
+  area.addEventListener("click", (e) => {
+    const item = e.target.closest(".lg-item");
+    if (!item) return;
+    const chave = item.getAttribute("data-chave");
+    if (item.classList.contains("lg-vendida")) {
+      layoutMostrarToque(chave, "vendida");
+      document.getElementById("lg-status").textContent = `${layoutNome(chave)} já foi vendida.`;
+      return;
+    }
+    if (item.classList.contains("lg-reservada")) {
+      layoutMostrarToque(chave, "reservada");
+      document.getElementById("lg-status").textContent = `${layoutNome(chave)} está reservada.`;
+      return;
+    }
+    layoutAlternar(chave);
+  });
+  area.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    const item = e.target.closest('.lg-item[role="button"]');
+    if (!item) return;
+    e.preventDefault();
+    layoutAlternar(item.getAttribute("data-chave"));
+  });
+}
+
 function iniciarLayoutGinasio() {
   const mapa = document.getElementById("lg-mapa");
   if (!mapa) return;
 
-  layoutEstado.vendidas = (mapa.dataset.vendidas || "").split(",").filter(Boolean);
+  layoutEstado.vendidasBase = (mapa.getAttribute("data-vendidas") || "").split(",").filter(Boolean);
+  layoutEstado.vendidas = layoutEstado.vendidasBase.slice();
+  layoutEstado.planilha = mapa.getAttribute("data-planilha") || "";
+  layoutEstado.assinaturaMapa = JSON.stringify(layoutSituacoes());
+
+  const reserva = layoutLerReserva();
+  if (reserva && Date.parse(reserva.ate) > Date.now()) layoutEstado.minhaReserva = reserva;
+  else gravarNoAparelho(LAYOUT_RESERVA, null);
+
   const salvas = layoutLer();
   const perdidas = salvas.filter((c) => layoutEstado.vendidas.indexOf(c) !== -1);
   layoutEstado.escolhas = salvas.filter((c) => layoutEstado.vendidas.indexOf(c) === -1);
   layoutEstado.salvaNoAparelho = salvas.length > 0;
   if (perdidas.length) {
     // A pessoa tinha marcado uma posição que, enquanto isso, foi vendida.
-    layoutSalvar();
-    const nomes = juntarComE(layoutOrdenar(perdidas).map(layoutNome));
-    const avisoPerdidas = document.getElementById("lg-perdidas");
-    avisoPerdidas.textContent =
-      perdidas.length === 1
-        ? `${nomes}, que você tinha marcado, já foi vendida.`
-        : `${nomes}, que você tinha marcado, já foram vendidas.`;
-    avisoPerdidas.hidden = false;
+    layoutMostrarPerdidas(perdidas.map((c) => ({ chave: c, situacao: "vendida" })));
   }
 
-  mapa.addEventListener("click", (e) => {
-    const item = e.target.closest(".lg-item");
-    if (!item) return;
-    if (item.classList.contains("lg-vendida")) {
-      layoutMostrarToque(item.dataset.chave, "vendida");
-      document.getElementById("lg-status").textContent = `${layoutNome(item.dataset.chave)} já foi vendida.`;
-      return;
-    }
-    layoutAlternar(item.dataset.chave);
-  });
-  mapa.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
-    const item = e.target.closest('.lg-item[role="button"]');
-    if (!item) return;
-    e.preventDefault();
-    layoutAlternar(item.dataset.chave);
-  });
+  layoutLigarCliques(mapa);
+  // Duplo toque/duplo clique: o 2º toque é ignorado (senão desmarca na hora ou
+  // cai no botão que subiu para o lugar do dedo). Teclado tem detail 0.
+  mapa.closest(".lg-grade").addEventListener(
+    "click",
+    (e) => {
+      if (e.detail > 1) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    true
+  );
 
+  const titulo = document.getElementById("lg-painel-titulo");
   document.getElementById("lg-escolhas").addEventListener("click", (e) => {
     const botao = e.target.closest(".lg-remover");
-    if (botao) layoutAlternar(botao.dataset.chave);
+    if (!botao) return;
+    const botoes = Array.prototype.slice.call(document.querySelectorAll("#lg-escolhas .lg-remover"));
+    const indice = botoes.indexOf(botao);
+    layoutAlternar(botao.getAttribute("data-chave"));
+    if (e.detail === 0) {
+      // Pelo teclado: o foco vai para o próximo X (ou para o título, se a lista acabou).
+      const restantes = document.querySelectorAll("#lg-escolhas .lg-remover");
+      if (restantes.length) restantes[Math.min(indice, restantes.length - 1)].focus();
+      else titulo.focus();
+    }
   });
-  document.getElementById("lg-limpar").addEventListener("click", () => {
+  document.getElementById("lg-limpar").addEventListener("click", (e) => {
     layoutEstado.escolhas = [];
+    layoutEstado.erroReserva = "";
     layoutSalvar();
     layoutAtualizarPainel();
     document.getElementById("lg-status").textContent = "Escolha limpa.";
+    if (e.detail === 0) titulo.focus();
   });
+  document.getElementById("lg-reservar").addEventListener("click", layoutReservar);
+  document.getElementById("lg-cancelar").addEventListener("click", (e) => {
+    layoutCancelarReserva();
+    if (e.detail === 0) titulo.focus();
+  });
+  document.getElementById("lg-ampliar").addEventListener("click", layoutAbrirZoom);
 
-  // Mapa estreito (celular): mostra só os números, em letra maior.
-  const ajustarTamanho = () => mapa.classList.toggle("lg-compacto", mapa.clientWidth < 500);
+  // Mapa menor que 700 px: só os números, em letra maior. Menor que 460 px (celular):
+  // posição vendida ou reservada pintada inteira, porque a palavra ficaria ilegível.
+  const ajustarTamanho = () => {
+    mapa.classList.toggle("lg-compacto", mapa.clientWidth < 700);
+    mapa.classList.toggle("lg-estreito", mapa.clientWidth < 460);
+  };
   ajustarTamanho();
   window.addEventListener("resize", ajustarTamanho);
 
   layoutAtualizarPainel();
+  if (layoutEstado.minhaReserva) layoutIniciarContagemReserva();
+
+  // A 1ª leitura acontece quando o mapa aparece na tela (ou já, se houver reserva viva).
+  layoutVigiarUso(mapa.closest(".lg-grade"));
+  if (layoutEstado.minhaReserva || !window.IntersectionObserver) layoutBuscarEstado(true);
+  layoutAgendarBusca();
+  layoutVigiarVencimentos();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) layoutBuscarEstado();
+  });
 }
 
 function criarBlocoLancamento(lancamento) {
@@ -696,7 +1586,7 @@ function iniciarContagemRegressiva() {
   let intervalo;
 
   function atualizar() {
-    const diff = alvo - Date.now();
+    const diff = alvo - agoraServidor();
     if (diff <= 0) {
       clearInterval(intervalo);
       abrirVendas(container);
@@ -725,9 +1615,23 @@ function abrirVendas(contador) {
   document.getElementById("chopp-lancamento-texto").textContent =
     "Os lotes de ingressos e os combos com barril de chopp já estão à venda pelo WhatsApp da Andréia e da Raquel.";
   document.getElementById("chopp-lancamento-compra").hidden = false;
-  // O painel do layout passa a mostrar os botões para enviar a escolha.
+  // O painel do layout passa a mostrar o botão de reservar e o mapa é lido mais vezes.
   layoutEstado.vendasAbertas = true;
   layoutAtualizarPainel();
+  if (document.getElementById("lg-mapa")) {
+    layoutBuscarEstado(true);
+    layoutAgendarBusca();
+  }
+}
+
+// Monta um pedaço da seção sem deixar um erro nele apagar o resto da página.
+function blocoSeguro(montar) {
+  try {
+    return montar();
+  } catch (erro) {
+    console.error(erro);
+    return "";
+  }
 }
 
 function criarSecaoChopp(evento) {
@@ -754,7 +1658,7 @@ function criarSecaoChopp(evento) {
         ${criarBlocoTimeline(evento.programacao)}
         ${criarGradeDestaques(evento.destaquesEvento)}
         ${criarBlocoChopps(evento.chopps)}
-        ${criarBlocoLayout(evento.layoutGinasio)}
+        ${blocoSeguro(() => criarBlocoLayout(evento.layoutGinasio))}
         ${criarBlocoLancamento(evento.lancamentoLotes)}
         ${criarBlocoPatrocinadores(evento.patrocinadores)}
       </div>
