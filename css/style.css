@@ -979,6 +979,7 @@ section {
 .baile-chopp {
   border-radius: var(--raio);
   overflow: hidden;
+  overflow: clip;
   background: var(--chopp-creme);
   box-shadow: var(--chopp-sombra);
   border: 1px solid rgba(36, 21, 9, 0.15);
@@ -1441,7 +1442,8 @@ section {
   fill: var(--chopp-dourado);
 }
 
-.lg-vendida {
+.lg-vendida,
+.lg-reservada {
   cursor: not-allowed;
 }
 
@@ -1474,8 +1476,20 @@ section {
   font-size: 33px;
 }
 
-.lg-compacto .lg-mesa .lg-num-vendida {
+.lg-compacto .lg-mesa .lg-num-ocupada {
   font-size: 30px;
+}
+
+.lg-ocupada-cor {
+  display: none;
+}
+
+.lg-estreito .lg-ocupada-cor {
+  display: inline;
+}
+
+.lg-estreito .lg-ocupada-palavra {
+  display: none;
 }
 
 .lg-lateral {
@@ -1535,6 +1549,70 @@ section {
 
 .lg-escolha.lg-nova {
   animation: lg-destacar 1.4s ease;
+}
+
+/* Posição que já está reservada para este visitante */
+.lg-escolha-reservada {
+  border-color: var(--chopp-dourado);
+  box-shadow: inset 4px 0 0 var(--chopp-dourado);
+}
+
+/* Reserva viva: prazo e código */
+.lg-reserva {
+  background: rgba(232, 168, 60, 0.18);
+  border: 2px solid var(--chopp-dourado);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 0 0 12px;
+}
+
+.lg-reserva p {
+  margin: 0;
+}
+
+.lg-reserva-titulo {
+  font-family: "Bevan", serif;
+  font-size: 1.15rem;
+  color: var(--chopp-dourado);
+}
+
+.lg-reserva-prazo {
+  font-weight: 800;
+  font-size: 1rem;
+  margin-top: 4px !important;
+}
+
+.lg-reserva-codigo {
+  font-size: 0.9rem;
+  opacity: 0.92;
+  letter-spacing: 0.02em;
+}
+
+.lg-reservar {
+  width: 100%;
+  justify-content: center;
+  margin: 2px 0 12px;
+  background: var(--chopp-dourado);
+  color: var(--chopp-marrom);
+  font-size: 1.02rem;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+}
+
+.lg-reservar:disabled {
+  opacity: 0.75;
+  cursor: progress;
+  transform: none;
+}
+
+.lg-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lg-acoes:not(:has(button:not([hidden]))) {
+  display: none;
 }
 
 @keyframes lg-destacar {
@@ -1632,7 +1710,7 @@ section {
   color: var(--chopp-azul);
 }
 
-.lg-legenda .lg-legenda-vendida {
+.lg-legenda .lg-legenda-selo {
   display: inline-block;
   background: #c62828;
   color: #fff;
@@ -1643,14 +1721,97 @@ section {
   margin-right: 4px;
 }
 
+.lg-legenda .lg-legenda-reservada {
+  background: #f6c344;
+  color: #3d2a00;
+}
+
 .lg-legenda p {
   margin: 0;
   font-size: 0.82rem;
   font-style: italic;
 }
 
+.lg-mapa-caixa {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
 .lg-ampliar {
   justify-content: center;
+  text-align: center;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lg-enviar .botao {
+  text-align: center;
+}
+
+html.lg-zoom-aberto,
+html.lg-zoom-aberto body {
+  overflow: hidden;
+}
+
+.lg-zoom {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 65;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.lg-zoom-barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--chopp-azul);
+  color: #fff;
+}
+
+.lg-zoom-barra p {
+  margin: 0;
+  flex: 1;
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+
+.lg-zoom-fechar {
+  flex-shrink: 0;
+  font: inherit;
+  font-weight: 800;
+  background: var(--chopp-dourado);
+  color: var(--chopp-marrom);
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.lg-zoom-area {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px;
+}
+
+.lg-zoom-area svg {
+  display: block;
+  width: 760px;
+  max-width: none;
+  height: auto;
+  margin: 0 auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .baile-chopp .lg-ampliar {
@@ -1700,9 +1861,9 @@ section {
 }
 
 .lg-toque strong {
-  font-family: "Bevan", serif;
-  font-weight: 400;
-  font-size: 1.2rem;
+  font-family: "Mulish", sans-serif;
+  font-weight: 800;
+  font-size: 1.12rem;
   color: var(--chopp-dourado);
 }
 
@@ -2033,8 +2194,30 @@ section {
   }
 }
 
+/* Botões de compra em uma linha a partir de 360 px */
+@media (max-width: 380px) {
+  .chopp-lancamento {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .chopp-lancamento-compra .botao {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
 /* Celulares muito estreitos (ex.: 320px) */
 @media (max-width: 360px) {
+  .lg-escolha strong {
+    font-size: 1.1rem;
+  }
+
+  .lg-reservar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
   .chopp-timeline-item {
     gap: 12px;
   }

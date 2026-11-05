@@ -1,2 +1,10 @@
+# Site estático + função de reservas do Baile do Chopp.
+# A publicação copia só os arquivos do site para dist/ (assim o código da
+# função e a pasta node_modules não ficam públicos). Se criar um arquivo novo
+# na raiz do site, inclua-o no comando abaixo.
 [build]
-  publish = "."
+  command = "mkdir -p dist && cp -R index.html css js assets robots.txt sitemap.xml dist/"
+  publish = "dist"
+
+[functions]
+  node_bundler = "esbuild"

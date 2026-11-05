@@ -131,11 +131,16 @@ const EVENTS = [
     },
     // Layout do ginásio enviado pela organização em 05/11/2026: chopeiras 1 a 13
     // na parede da esquerda, 14 a 18 na da direita e mesas 1 a 20 no centro.
-    // Posições já vendidas: coloque os números conforme a organização avisar,
-    // ex.: chopeirasVendidas: [13], mesasVendidas: [5, 6]. No mapa elas ganham
-    // a inscrição "VENDIDA" e não podem mais ser marcadas.
+    // Posições vendidas ganham a inscrição "VENDIDA" e não podem mais ser marcadas.
     layoutGinasio: {
       imagem: "assets/eventos/layout-ginasio.png",
+      // Planilha do Google em que a organização marca as vendidas (1ª aba,
+      // coluna Situação = VENDIDA). O site lê ao abrir e a cada 45 segundos.
+      // Ela precisa estar compartilhada como "Qualquer pessoa com o link: Leitor";
+      // se não estiver ou cair, o site usa só as listas abaixo.
+      planilhaVendidas: "1vVGZm6JphK1Rw7S7OWOKkM9AJ9gxXFhMwGCIyHpaqXE",
+      // Reserva: vendidas escritas direto aqui (somam com a planilha),
+      // ex.: chopeirasVendidas: [13], mesasVendidas: [5, 6].
       chopeirasVendidas: [],
       mesasVendidas: [],
     },
