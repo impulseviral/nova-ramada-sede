@@ -129,6 +129,16 @@ const EVENTS = [
       barril: "Você pode escolher o tipo de chopp e comprar um barril exclusivo para o seu grupo, de 50 ou 30 litros — ideal para amigos, família e empresas. Garanta o seu e brinde essa noite especial!",
       tamanhosBarril: ["50 litros", "30 litros"],
     },
+    // Layout do ginásio enviado pela organização em 05/11/2026: chopeiras 1 a 13
+    // na parede da esquerda, 14 a 18 na da direita e mesas 1 a 20 no centro.
+    // Posições já vendidas: coloque os números conforme a organização avisar,
+    // ex.: chopeirasVendidas: [13], mesasVendidas: [5, 6]. No mapa elas ganham
+    // a inscrição "VENDIDA" e não podem mais ser marcadas.
+    layoutGinasio: {
+      imagem: "assets/eventos/layout-ginasio.png",
+      chopeirasVendidas: [],
+      mesasVendidas: [],
+    },
     lancamentoLotes: LANCAMENTO_LOTES,
     valores: [],
     observacao: "",

@@ -1360,6 +1360,373 @@ section {
   border-radius: 999px;
 }
 
+/* --- Layout do ginásio (mapa em que o visitante marca chopeira e mesa) --- */
+#layout-ginasio {
+  scroll-margin-top: 96px;
+}
+
+.lg-intro {
+  text-align: center;
+  max-width: 680px;
+  margin: -10px auto 26px;
+  color: var(--chopp-marrom-claro);
+}
+
+.lg-intro strong {
+  color: var(--chopp-azul);
+}
+
+.lg-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  max-width: 620px;
+  margin: 0 auto 48px;
+}
+
+.lg-mapa {
+  background: #fff;
+  border-radius: 16px;
+  padding: 8px;
+  border: 1px solid rgba(36, 21, 9, 0.1);
+  box-shadow: 0 10px 24px rgba(36, 21, 9, 0.12);
+}
+
+.lg-mapa svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.lg-item {
+  cursor: pointer;
+  outline: none;
+}
+
+.lg-alvo {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 4;
+  transition: stroke 0.15s ease;
+}
+
+/* Só em aparelhos com mouse: no celular o "hover" ficaria preso depois do toque */
+@media (hover: hover) {
+  .lg-item[role="button"]:hover .lg-alvo {
+    stroke: rgba(47, 85, 144, 0.55);
+  }
+}
+
+.lg-item:focus-visible .lg-alvo {
+  stroke: var(--chopp-azul-claro);
+  stroke-width: 6;
+}
+
+/* Posição marcada pelo visitante */
+.lg-item[aria-pressed="true"] .lg-forma {
+  fill: var(--chopp-azul);
+  stroke: var(--chopp-dourado);
+  stroke-width: 5;
+}
+
+.lg-item[aria-pressed="true"] .lg-texto {
+  fill: #fff;
+}
+
+.lg-mesa[aria-pressed="true"] .lg-cadeiras {
+  fill: var(--chopp-dourado);
+}
+
+.lg-vendida {
+  cursor: not-allowed;
+}
+
+/* Mapa estreito (celular): só os números, em letra maior */
+.lg-texto-curto {
+  display: none;
+}
+
+.lg-compacto .lg-texto-longo {
+  display: none;
+}
+
+.lg-compacto .lg-texto-curto {
+  display: inline;
+}
+
+.lg-compacto .lg-rotulo-palco {
+  font-size: 44px;
+}
+
+.lg-compacto .lg-rotulo-banheiro {
+  font-size: 30px;
+}
+
+.lg-compacto .lg-rotulo-entrada {
+  font-size: 25px;
+}
+
+.lg-compacto .lg-rotulo-caixa {
+  font-size: 33px;
+}
+
+.lg-compacto .lg-mesa .lg-num-vendida {
+  font-size: 30px;
+}
+
+.lg-lateral {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.lg-painel {
+  background: var(--chopp-azul);
+  background-image: radial-gradient(circle at top right, var(--chopp-azul-claro), var(--chopp-azul) 65%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.lg-painel h5 {
+  color: var(--chopp-dourado);
+  font-size: 1.15rem;
+  margin: 0 0 10px;
+}
+
+.lg-vazio,
+.lg-perdidas {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+}
+
+.lg-perdidas {
+  background: rgba(198, 40, 40, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.lg-escolhas {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.lg-escolhas:empty {
+  display: none;
+}
+
+.lg-escolha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  padding: 10px 10px 10px 14px;
+}
+
+.lg-escolha.lg-nova {
+  animation: lg-destacar 1.4s ease;
+}
+
+@keyframes lg-destacar {
+  from {
+    background: rgba(232, 168, 60, 0.55);
+  }
+  to {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.lg-escolha div {
+  flex: 1;
+  min-width: 0;
+}
+
+.lg-escolha strong {
+  display: block;
+  font-family: "Bevan", serif;
+  font-weight: 400;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.lg-escolha span {
+  display: block;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  opacity: 0.92;
+}
+
+.lg-remover {
+  flex: 0 0 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lg-remover:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.lg-enviar {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+
+.lg-enviar .botao {
+  justify-content: center;
+}
+
+.lg-limpar {
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--chopp-dourado);
+  background: transparent;
+  border: 1.5px solid rgba(232, 168, 60, 0.7);
+  border-radius: 999px;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+
+.lg-aviso {
+  margin: 12px 0 0;
+  font-size: 0.86rem;
+  opacity: 0.92;
+}
+
+.lg-legenda {
+  background: #fff;
+  border: 1px solid rgba(36, 21, 9, 0.08);
+  border-radius: 14px;
+  padding: 16px 18px;
+  font-size: 0.9rem;
+  color: var(--chopp-marrom-claro);
+}
+
+.lg-legenda ul {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.lg-legenda strong {
+  color: var(--chopp-azul);
+}
+
+.lg-legenda .lg-legenda-vendida {
+  display: inline-block;
+  background: #c62828;
+  color: #fff;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  padding: 1px 8px;
+  border-radius: 5px;
+  margin-right: 4px;
+}
+
+.lg-legenda p {
+  margin: 0;
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+.lg-ampliar {
+  justify-content: center;
+}
+
+.baile-chopp .lg-ampliar {
+  color: var(--chopp-azul);
+}
+
+/* Leitor de tela: avisa o que foi marcado ou desmarcado */
+.lg-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Aviso rápido no pé da tela ao tocar no mapa */
+.lg-toque {
+  position: fixed;
+  left: 16px;
+  right: 92px;
+  bottom: 18px;
+  z-index: 70;
+  max-width: 420px;
+  margin: 0 auto;
+  background: var(--chopp-azul);
+  color: #fff;
+  border: 2px solid var(--chopp-dourado);
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+  font-family: "Mulish", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.lg-toque.visivel {
+  opacity: 1;
+  transform: none;
+}
+
+.lg-toque strong {
+  font-family: "Bevan", serif;
+  font-weight: 400;
+  font-size: 1.2rem;
+  color: var(--chopp-dourado);
+}
+
+.lg-toque span {
+  display: block;
+  font-size: 0.85rem;
+  opacity: 0.92;
+}
+
+@media (min-width: 960px) {
+  .lg-grade {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 28px;
+    max-width: none;
+    align-items: start;
+  }
+
+  /* O painel acompanha a rolagem ao lado do mapa */
+  .lg-lateral {
+    position: sticky;
+    top: 96px;
+  }
+}
+
 /* --- Lançamento dos lotes / contagem regressiva --- */
 .chopp-lancamento {
   background: var(--chopp-azul);
@@ -1496,6 +1863,25 @@ section {
     width: 100%;
     max-width: 420px;
     margin: 0 auto;
+  }
+
+  /* Mapa do ginásio ocupa quase toda a largura para os números ficarem maiores */
+  .lg-mapa {
+    margin: 0 -14px;
+    padding: 4px;
+    border-radius: 12px;
+  }
+
+  .lg-intro {
+    font-size: 0.95rem;
+  }
+
+  .lg-painel {
+    padding: 18px 16px;
+  }
+
+  .lg-enviar .botao {
+    padding: 14px 18px;
   }
 }
 

@@ -225,12 +225,444 @@ function criarBlocoChopps(chopps) {
   `;
 }
 
+// ---------- Layout do ginásio ----------
+// Mapa redesenhado a partir do layout enviado pela organização (1024 x 1536),
+// nas mesmas posições. O visitante toca nas chopeiras e mesas para marcar a
+// posição que quer; a escolha fica salva no aparelho e, quando as vendas
+// abrem, vai junto na mensagem de WhatsApp para a Andréia ou a Raquel.
+const LAYOUT_ARMAZENAMENTO = "baile-chopp-2026-layout";
+const layoutEstado = {
+  escolhas: [], // ex.: ["chopeira-5", "mesa-12"]
+  vendidas: [],
+  vendasAbertas: false,
+  salvaNoAparelho: false,
+  timerToque: null,
+};
+
+function layoutItens() {
+  const itens = [];
+  for (let n = 1; n <= 18; n++) {
+    const esquerda = n <= 13; // 1 a 13 na parede da esquerda, 14 a 18 na da direita
+    itens.push({ tipo: "chopeira", num: n, x: esquerda ? 43 : 781, y: 322 + 71 * (esquerda ? n - 1 : n - 14) });
+  }
+  for (let n = 1; n <= 20; n++) {
+    // 4 fileiras de 5; a fileira das mesas 1 a 5 é a mais perto do palco
+    itens.push({ tipo: "mesa", num: n, x: 321 + 102 * ((n - 1) % 5), y: 774 + 124 * Math.floor((n - 1) / 5) });
+  }
+  return itens;
+}
+
+function layoutChaveValida(chave) {
+  return layoutItens().some((i) => `${i.tipo}-${i.num}` === chave);
+}
+
+function layoutNome(chave) {
+  const partes = chave.split("-");
+  return (partes[0] === "mesa" ? "Mesa " : "Chopeira ") + partes[1];
+}
+
+function layoutPosicao(chave) {
+  const partes = chave.split("-");
+  const num = Number(partes[1]);
+  if (partes[0] === "chopeira") {
+    return num <= 13 ? "Parede da esquerda, entre os banheiros" : "Parede da direita, entre o palco e o bar";
+  }
+  const fileira = Math.ceil(num / 5);
+  const coluna = ((num - 1) % 5) + 1;
+  const textoFileira = [
+    "1ª fileira, a mais perto do palco",
+    "2ª fileira a partir do palco",
+    "3ª fileira a partir do palco",
+    "4ª fileira, a mais perto das entradas",
+  ][fileira - 1];
+  const textoColuna = [
+    "na ponta esquerda",
+    "a 2ª da esquerda",
+    "no meio",
+    "a 2ª da direita",
+    fileira <= 3 ? "na ponta direita, ao lado do bar" : "na ponta direita, ao lado do caixa",
+  ][coluna - 1];
+  return `${textoFileira} · ${textoColuna}`;
+}
+
+function layoutOrdenar(chaves) {
+  return chaves.slice().sort((a, b) => {
+    const pa = a.split("-");
+    const pb = b.split("-");
+    if (pa[0] !== pb[0]) return pa[0] === "chopeira" ? -1 : 1;
+    return Number(pa[1]) - Number(pb[1]);
+  });
+}
+
+function juntarComE(lista) {
+  if (lista.length <= 1) return lista.join("");
+  return `${lista.slice(0, -1).join(", ")} e ${lista[lista.length - 1]}`;
+}
+
+// Mensagem dos botões de compra; leva a escolha do layout, se houver.
+function mensagemCompra(contato) {
+  let texto = `Olá ${contato.nome}! ${LANCAMENTO_LOTES.mensagemCompra}`;
+  if (layoutEstado.escolhas.length) {
+    texto += ` No layout do ginásio, escolhi: ${juntarComE(layoutOrdenar(layoutEstado.escolhas).map(layoutNome))}.`;
+  }
+  return texto;
+}
+
+function atualizarLinksCompra() {
+  document.querySelectorAll("a[data-contato]").forEach((a) => {
+    const contato = CONTATOS_OFICIAIS[Number(a.dataset.contato)];
+    if (contato) a.href = waLink(mensagemCompra(contato), contato.whatsapp);
+  });
+}
+
+function layoutAtributos(nome, vendida) {
+  return vendida
+    ? `role="img" aria-label="${nome}, vendida"`
+    : `role="button" tabindex="0" aria-pressed="false" aria-label="${nome}"`;
+}
+
+function svgChopeira(item, vendida) {
+  const { num, x, y } = item;
+  if (vendida) {
+    // Vendida: número à esquerda e a inscrição VENDIDA em vermelho.
+    return `
+    <g class="lg-item lg-chopeira lg-vendida" data-chave="chopeira-${num}" ${layoutAtributos(`Chopeira ${num}`, true)}>
+      <rect class="lg-alvo" x="${x - 6}" y="${y - 6}" width="212" height="71" rx="12"/>
+      <rect x="${x}" y="${y}" width="200" height="59" rx="8" fill="#ebe6de" stroke="#9b958b" stroke-width="2.4"/>
+      <text class="lg-num-vendida" x="${x + 34}" y="${y + 41}" font-size="32" text-anchor="middle" fill="#6f6a62">${num}</text>
+      <rect x="${x + 66}" y="${y + 12}" width="126" height="35" rx="8" fill="#c62828"/>
+      <text x="${x + 129}" y="${y + 37}" font-size="22" text-anchor="middle" fill="#fff" letter-spacing="1">VENDIDA</text>
+    </g>`;
+  }
+  return `
+    <g class="lg-item lg-chopeira" data-chave="chopeira-${num}" ${layoutAtributos(`Chopeira ${num}`, false)}>
+      <rect class="lg-alvo" x="${x - 6}" y="${y - 6}" width="212" height="71" rx="12"/>
+      <rect class="lg-forma" x="${x}" y="${y}" width="200" height="59" rx="8" fill="url(#lg-barraca)" stroke="#1a1b29" stroke-width="2.4"/>
+      <g class="lg-icone">
+        <rect x="${x + 12}" y="${y + 18}" width="41" height="32" rx="2" fill="#b67a3e" stroke="#182032" stroke-width="1.5"/>
+        <path d="M${x + 10} ${y + 20}l5-13h36l6 13z" fill="#fbfbf9" stroke="#152037" stroke-width="1.5"/>
+        <path d="M${x + 17} ${y + 8}l-3 12h9l2-12zM${x + 33} ${y + 8}l1 12h9l-3-12zM${x + 47} ${y + 8}l7 12h-9l-4-12z" fill="#e44649"/>
+        <rect x="${x + 27}" y="${y + 29}" width="12" height="15" rx="2" fill="#ffcc31" stroke="#2e2816" stroke-width="1.3"/>
+        <path d="M${x + 39} ${y + 32}q8-1 6 5q-1 5-6 3" stroke="#36291a" stroke-width="1.7" fill="none"/>
+        <ellipse cx="${x + 33}" cy="${y + 28}" rx="8" ry="4" fill="#fff"/>
+      </g>
+      <text class="lg-texto lg-texto-longo" x="${x + 65}" y="${y + 38}" font-size="20" fill="#111322">Chopeira ${num}</text>
+      <text class="lg-texto lg-texto-curto" x="${x + 131}" y="${y + 44}" font-size="40" text-anchor="middle" fill="#111322">${num}</text>
+    </g>`;
+}
+
+function svgMesa(item, vendida) {
+  const { num, x: cx, y: cy } = item;
+  const cadeiras = `
+        <rect x="${cx - 11}" y="${cy - 43}" width="22" height="15" rx="4"/>
+        <rect x="${cx - 11}" y="${cy + 28}" width="22" height="15" rx="4"/>
+        <rect x="${cx - 43}" y="${cy - 11}" width="16" height="22" rx="4"/>
+        <rect x="${cx + 27}" y="${cy - 11}" width="16" height="22" rx="4"/>`;
+  if (vendida) {
+    // Vendida: mesa em cinza, número em cima e a faixa VENDIDA em vermelho.
+    return `
+    <g class="lg-item lg-mesa lg-vendida" data-chave="mesa-${num}" ${layoutAtributos(`Mesa ${num}`, true)}>
+      <rect class="lg-alvo" x="${cx - 50}" y="${cy - 58}" width="100" height="116" rx="14"/>
+      <g fill="#e2ddd5" stroke="#9b958b" stroke-width="2.5">${cadeiras}</g>
+      <circle cx="${cx}" cy="${cy}" r="32" fill="#ebe6de" stroke="#9b958b" stroke-width="2.5"/>
+      <text class="lg-num-vendida" x="${cx}" y="${cy - 6}" font-size="26" text-anchor="middle" fill="#6f6a62">${num}</text>
+      <rect x="${cx - 47}" y="${cy + 4}" width="94" height="26" rx="6" fill="#c62828"/>
+      <text x="${cx}" y="${cy + 23}" font-size="17" text-anchor="middle" fill="#fff" letter-spacing=".5">VENDIDA</text>
+    </g>`;
+  }
+  return `
+    <g class="lg-item lg-mesa" data-chave="mesa-${num}" ${layoutAtributos(`Mesa ${num}`, false)}>
+      <rect class="lg-alvo" x="${cx - 50}" y="${cy - 58}" width="100" height="116" rx="14"/>
+      <g class="lg-cadeiras" fill="#f7dca7" stroke="#171d2c" stroke-width="2.5">${cadeiras}</g>
+      <circle class="lg-forma" cx="${cx}" cy="${cy}" r="32" fill="#ffe3ad" stroke="#171d2c" stroke-width="2.5"/>
+      <text class="lg-texto lg-texto-longo" x="${cx}" y="${cy - 1}" font-size="15" text-anchor="middle" fill="#171924">Mesa</text>
+      <text class="lg-texto lg-texto-longo" x="${cx}" y="${cy + 20}" font-size="21" text-anchor="middle" fill="#171924">${num}</text>
+      <text class="lg-texto lg-texto-curto" x="${cx}" y="${cy + 13}" font-size="36" text-anchor="middle" fill="#171924">${num}</text>
+    </g>`;
+}
+
+// Partes fixas do desenho: paredes, palco, saídas, banheiros, bar, caixa e entradas.
+function svgGinasioFixo() {
+  const paredes = "M30 160H276M369 160H670M763 160H994V1432H726M625 1432H390M288 1432H30V160";
+  const saida = (x) => `
+      <path d="M${x + 17} 160V215M${x + 110} 160V215" stroke="#10152a" stroke-width="3" fill="none"/>
+      <path d="M${x + 17} 215A46.5 46.5 0 0 1 ${x + 63.5} 168A46.5 46.5 0 0 1 ${x + 110} 215" stroke="#10152a" stroke-width="3" fill="none"/>
+      <rect x="${x}" y="226" width="129" height="54" rx="10" fill="#bbf2b7" stroke="#1b4c36" stroke-width="2.5"/>
+      <text x="${x + 64.5}" y="245" text-anchor="middle" fill="#163921" font-size="15">SAÍDA DE</text>
+      <text x="${x + 64.5}" y="263" text-anchor="middle" fill="#163921" font-size="15">EMERGÊNCIA</text>`;
+  const banheiro = (y) => `
+      <rect x="46" y="${y}" width="194" height="104" rx="10" fill="#e8cefb" stroke="#14182c" stroke-width="3" filter="url(#lg-sombra)"/>
+      <g fill="#191c2a">
+        <circle cx="117" cy="${y + 23}" r="6"/><rect x="112" y="${y + 30}" width="10" height="21" rx="4"/>
+        <path d="M114 ${y + 50}v9m7-9v9" stroke="#191c2a" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="158" cy="${y + 23}" r="6"/><path d="M158 ${y + 30}l-11 25h22z"/>
+        <path d="M153 ${y + 50}v9m10-9v9" stroke="#191c2a" stroke-width="4" stroke-linecap="round"/>
+      </g>
+      <text class="lg-rotulo-banheiro" x="143" y="${y + 88}" text-anchor="middle" font-size="24" fill="#11152b">BANHEIRO</text>`;
+  const entrada = (x) => `
+      <path d="M${x} 1432V1380M${x + 102} 1432V1380" fill="none" stroke="#10152a" stroke-width="3"/>
+      <path d="M${x} 1380A51 51 0 0 1 ${x + 51} 1431A51 51 0 0 1 ${x + 102} 1380" fill="none" stroke="#10152a" stroke-width="3"/>
+      <rect x="${x - 14}" y="1443" width="130" height="49" rx="12" fill="#a9ecae" stroke="#20542d" stroke-width="2.4"/>
+      <text class="lg-rotulo-entrada" x="${x + 51}" y="1476" text-anchor="middle" font-size="23" fill="#121f18">ENTRADA</text>`;
+
+  return `
+    <g aria-hidden="true">
+      <rect x="12" y="140" width="1000" height="1366" fill="url(#lg-papel)"/>
+      <path d="${paredes}" fill="none" stroke="#10152a" stroke-width="13" stroke-linejoin="round"/>
+      <path d="${paredes}" fill="none" stroke="#46415d" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M401 161H650V282L635 298H415L401 282Z" fill="url(#lg-palco)" stroke="#1b1831" stroke-width="4" filter="url(#lg-sombra)"/>
+      <g fill="#fff" opacity=".42"><path d="M439 163L415 241H461Z"/><path d="M527 163L505 241H550Z"/><path d="M614 163L592 241H638Z"/></g>
+      <text class="lg-rotulo-palco" x="525" y="251" text-anchor="middle" font-size="39" fill="#0a1022">PALCO</text>
+      <g fill="#4d5365" stroke="#141824" stroke-width="3"><rect x="418" y="240" width="31" height="51" rx="5"/><rect x="603" y="240" width="31" height="51" rx="5"/></g>
+      <g fill="#c6cad7" stroke="#1b2434" stroke-width="2"><circle cx="433.5" cy="252" r="5"/><circle cx="433.5" cy="273" r="8"/><circle cx="618.5" cy="252" r="5"/><circle cx="618.5" cy="273" r="8"/></g>
+      <path d="M480 298H570V343H480Z" fill="#e7eaf1" stroke="#1a2332" stroke-width="3"/>
+      <path d="M480 312H570M480 327H570" stroke="#1a2332" stroke-width="3"/>
+      ${saida(259)}
+      ${saida(655)}
+      ${banheiro(174)}
+      ${banheiro(1258)}
+      <rect x="852" y="720" width="130" height="381" rx="15" fill="#d99a50" stroke="#171728" stroke-width="3"/>
+      <rect x="869" y="738" width="111" height="345" rx="12" fill="#951d42" stroke="#f7cc76" stroke-width="4"/>
+      <g fill="#d9a35e" stroke="#171728" stroke-width="2"><circle cx="838" cy="794" r="15"/><circle cx="838" cy="865" r="15"/><circle cx="838" cy="936" r="15"/><circle cx="838" cy="1007" r="15"/></g>
+      <path d="M822 780V1027" stroke="#382618" stroke-width="3"/>
+      <path d="M909 869h22v36h-22z" stroke="#281d16" stroke-width="2" fill="#e8a82b"/>
+      <path d="M931 878h11v17h-11" stroke="#edc36e" stroke-width="4" fill="none"/>
+      <path d="M908 869q-8-8 0-12q6-14 14-4q11-6 15 9q0 10-11 8" fill="#fff" stroke="#f3ece4" stroke-width="1.5"/>
+      <text x="927" y="953" text-anchor="middle" fill="#fff" font-size="37">BAR</text>
+      <rect x="826" y="1120" width="155" height="176" rx="11" fill="#fff6df" stroke="#131826" stroke-width="3"/>
+      <g fill="#8d2140"><rect x="891" y="1161" width="42" height="20" rx="3"/><path d="M889 1189h46l11 39h-68z"/><rect x="891" y="1232" width="43" height="7" rx="2"/></g>
+      <g fill="#fff5e1"><rect x="900" y="1199" width="8" height="6"/><rect x="913" y="1199" width="8" height="6"/><rect x="926" y="1199" width="8" height="6"/></g>
+      <text class="lg-rotulo-caixa" x="903" y="1270" text-anchor="middle" fill="#10131d" font-size="29">CAIXA</text>
+      ${entrada(288)}
+      ${entrada(625)}
+    </g>`;
+}
+
+function criarSvgGinasio(vendidas) {
+  const itens = layoutItens();
+  const chopeiras = itens.filter((i) => i.tipo === "chopeira").map((i) => svgChopeira(i, vendidas.includes(`chopeira-${i.num}`))).join("");
+  const mesas = itens.filter((i) => i.tipo === "mesa").map((i) => svgMesa(i, vendidas.includes(`mesa-${i.num}`))).join("");
+  return `
+    <svg viewBox="12 140 1000 1366" width="1000" height="1366" role="group" aria-label="Layout do ginásio: palco no fundo, chopeiras nas paredes e mesas no centro" font-family="Mulish, Arial, sans-serif" font-weight="800">
+      <defs>
+        <linearGradient id="lg-papel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffefe"/><stop offset="1" stop-color="#f6f5fa"/></linearGradient>
+        <linearGradient id="lg-palco" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4d3fc"/><stop offset="1" stop-color="#b778d8"/></linearGradient>
+        <linearGradient id="lg-barraca" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8e7"/><stop offset="1" stop-color="#fff1d1"/></linearGradient>
+        <filter id="lg-sombra"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#172036" flood-opacity=".14"/></filter>
+      </defs>
+      ${svgGinasioFixo()}
+      ${chopeiras}
+      ${mesas}
+    </svg>`;
+}
+
+function criarBlocoLayout(layout) {
+  if (!layout) return "";
+  const vendidas = (layout.chopeirasVendidas || [])
+    .map((n) => `chopeira-${n}`)
+    .concat((layout.mesasVendidas || []).map((n) => `mesa-${n}`))
+    .filter(layoutChaveValida);
+  const botoesEnviar = CONTATOS_OFICIAIS.map(
+    (c, i) => `
+          <a class="botao botao-whatsapp" data-contato="${i}" href="${waLink(mensagemCompra(c), c.whatsapp)}" target="_blank" rel="noopener">
+            ${iconeWhatsapp()} Enviar para a ${c.nome}
+          </a>`
+  ).join("");
+
+  return `
+    <div class="chopp-bloco-titulo" id="layout-ginasio">
+      <span class="chopp-etiqueta">Layout do ginásio</span>
+      <h4>Onde fica cada chopeira e cada mesa</h4>
+    </div>
+    <p class="lg-intro">Veja onde vão ficar as chopeiras e as mesas e já escolha a posição que você quer para a hora da compra. <strong>Toque no layout para marcar.</strong></p>
+    <div class="lg-grade">
+      <div class="lg-mapa" id="lg-mapa" data-vendidas="${vendidas.join(",")}">
+        ${criarSvgGinasio(vendidas)}
+      </div>
+      <div class="lg-lateral">
+        <div class="lg-painel">
+          <h5>Sua escolha</h5>
+          <p class="lg-vazio" id="lg-vazio">Nenhuma posição marcada ainda. Toque numa chopeira ou numa mesa no layout.</p>
+          <p class="lg-perdidas" id="lg-perdidas" hidden></p>
+          <ul class="lg-escolhas" id="lg-escolhas"></ul>
+          <div class="lg-enviar" id="lg-enviar" hidden>${botoesEnviar}</div>
+          <button type="button" class="lg-limpar" id="lg-limpar" hidden>Limpar escolha</button>
+          <p class="lg-aviso" id="lg-aviso"></p>
+        </div>
+        <div class="lg-legenda">
+          <ul>
+            <li><strong>Chopeiras 1 a 13:</strong> parede da esquerda, entre os dois banheiros.</li>
+            <li><strong>Chopeiras 14 a 18:</strong> parede da direita, entre o palco e o bar.</li>
+            <li><strong>Mesas 1 a 20:</strong> no centro, em 4 fileiras de 5. A fileira das mesas 1 a 5 é a mais perto do palco.</li>
+            ${vendidas.length ? `<li><strong class="lg-legenda-vendida">VENDIDA</strong> posição que já foi vendida.</li>` : ""}
+          </ul>
+          <p>Esquerda e direita de quem entra no ginásio, olhando para o palco.</p>
+        </div>
+        ${layout.imagem ? `<a class="botao botao-secundario lg-ampliar" href="${layout.imagem}" target="_blank" rel="noopener">🔍 Ver o layout ampliado</a>` : ""}
+      </div>
+    </div>
+    <p class="lg-status" id="lg-status" aria-live="polite"></p>
+  `;
+}
+
+function layoutLer() {
+  try {
+    const salvo = JSON.parse(window.localStorage.getItem(LAYOUT_ARMAZENAMENTO) || "[]");
+    return Array.isArray(salvo) ? salvo.filter((c) => typeof c === "string" && layoutChaveValida(c)) : [];
+  } catch (erro) {
+    return [];
+  }
+}
+
+function layoutSalvar() {
+  try {
+    window.localStorage.setItem(LAYOUT_ARMAZENAMENTO, JSON.stringify(layoutEstado.escolhas));
+    layoutEstado.salvaNoAparelho = true;
+  } catch (erro) {
+    layoutEstado.salvaNoAparelho = false;
+  }
+}
+
+function layoutAtualizarPainel(chaveNova) {
+  const lista = document.getElementById("lg-escolhas");
+  if (!lista) return;
+
+  const escolhas = layoutOrdenar(layoutEstado.escolhas);
+  const vazio = escolhas.length === 0;
+  lista.innerHTML = escolhas
+    .map(
+      (chave) => `
+      <li class="lg-escolha${chave === chaveNova ? " lg-nova" : ""}">
+        <div><strong>${layoutNome(chave)}</strong><span>${layoutPosicao(chave)}</span></div>
+        <button type="button" class="lg-remover" data-chave="${chave}" aria-label="Desmarcar ${layoutNome(chave)}">×</button>
+      </li>`
+    )
+    .join("");
+
+  document.getElementById("lg-vazio").hidden = !vazio;
+  document.getElementById("lg-limpar").hidden = vazio;
+  document.getElementById("lg-enviar").hidden = vazio || !layoutEstado.vendasAbertas;
+
+  let aviso;
+  if (!layoutEstado.vendasAbertas) {
+    aviso = `Marcar no layout não reserva o lugar. Na abertura das vendas, em ${LANCAMENTO_LOTES.label}, aparecem aqui os botões para enviar sua escolha pelo WhatsApp da Andréia ou da Raquel.`;
+  } else if (vazio) {
+    aviso = "Marque as posições que você quer para enviar sua escolha pelo WhatsApp da Andréia ou da Raquel.";
+  } else {
+    aviso = "Marcar no layout não reserva o lugar: envie sua escolha e combine a compra com a Andréia ou a Raquel.";
+  }
+  if (!vazio && layoutEstado.salvaNoAparelho) aviso += " Sua escolha fica salva neste aparelho.";
+  document.getElementById("lg-aviso").textContent = aviso;
+
+  document.querySelectorAll('.lg-item[role="button"]').forEach((g) => {
+    g.setAttribute("aria-pressed", String(layoutEstado.escolhas.indexOf(g.dataset.chave) !== -1));
+  });
+  atualizarLinksCompra();
+}
+
+// Aviso rápido no pé da tela: no celular o painel "Sua escolha" fica abaixo do mapa.
+function layoutMostrarToque(chave, marcado) {
+  let toque = document.getElementById("lg-toque");
+  if (!toque) {
+    toque = document.createElement("div");
+    toque.id = "lg-toque";
+    toque.className = "lg-toque";
+    toque.setAttribute("aria-hidden", "true");
+    document.body.appendChild(toque);
+  }
+  if (marcado === "vendida") {
+    toque.innerHTML = `<strong>${layoutNome(chave)}</strong> já foi vendida<span>Escolha outra posição no layout.</span>`;
+  } else {
+    toque.innerHTML = marcado
+      ? `<strong>${layoutNome(chave)}</strong> marcada ✓<span>${layoutPosicao(chave)}</span>`
+      : `<strong>${layoutNome(chave)}</strong> desmarcada`;
+  }
+  toque.classList.add("visivel");
+  clearTimeout(layoutEstado.timerToque);
+  layoutEstado.timerToque = setTimeout(() => toque.classList.remove("visivel"), 2600);
+}
+
+function layoutAlternar(chave) {
+  if (!layoutChaveValida(chave) || layoutEstado.vendidas.indexOf(chave) !== -1) return;
+  const posicao = layoutEstado.escolhas.indexOf(chave);
+  const marcado = posicao === -1;
+  if (marcado) {
+    layoutEstado.escolhas.push(chave);
+  } else {
+    layoutEstado.escolhas.splice(posicao, 1);
+  }
+  layoutSalvar();
+  layoutAtualizarPainel(marcado ? chave : null);
+  layoutMostrarToque(chave, marcado);
+  document.getElementById("lg-status").textContent = marcado
+    ? `${layoutNome(chave)} marcada. ${layoutPosicao(chave)}.`
+    : `${layoutNome(chave)} desmarcada.`;
+}
+
+function iniciarLayoutGinasio() {
+  const mapa = document.getElementById("lg-mapa");
+  if (!mapa) return;
+
+  layoutEstado.vendidas = (mapa.dataset.vendidas || "").split(",").filter(Boolean);
+  const salvas = layoutLer();
+  const perdidas = salvas.filter((c) => layoutEstado.vendidas.indexOf(c) !== -1);
+  layoutEstado.escolhas = salvas.filter((c) => layoutEstado.vendidas.indexOf(c) === -1);
+  layoutEstado.salvaNoAparelho = salvas.length > 0;
+  if (perdidas.length) {
+    // A pessoa tinha marcado uma posição que, enquanto isso, foi vendida.
+    layoutSalvar();
+    const nomes = juntarComE(layoutOrdenar(perdidas).map(layoutNome));
+    const avisoPerdidas = document.getElementById("lg-perdidas");
+    avisoPerdidas.textContent =
+      perdidas.length === 1
+        ? `${nomes}, que você tinha marcado, já foi vendida.`
+        : `${nomes}, que você tinha marcado, já foram vendidas.`;
+    avisoPerdidas.hidden = false;
+  }
+
+  mapa.addEventListener("click", (e) => {
+    const item = e.target.closest(".lg-item");
+    if (!item) return;
+    if (item.classList.contains("lg-vendida")) {
+      layoutMostrarToque(item.dataset.chave, "vendida");
+      document.getElementById("lg-status").textContent = `${layoutNome(item.dataset.chave)} já foi vendida.`;
+      return;
+    }
+    layoutAlternar(item.dataset.chave);
+  });
+  mapa.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    const item = e.target.closest('.lg-item[role="button"]');
+    if (!item) return;
+    e.preventDefault();
+    layoutAlternar(item.dataset.chave);
+  });
+
+  document.getElementById("lg-escolhas").addEventListener("click", (e) => {
+    const botao = e.target.closest(".lg-remover");
+    if (botao) layoutAlternar(botao.dataset.chave);
+  });
+  document.getElementById("lg-limpar").addEventListener("click", () => {
+    layoutEstado.escolhas = [];
+    layoutSalvar();
+    layoutAtualizarPainel();
+    document.getElementById("lg-status").textContent = "Escolha limpa.";
+  });
+
+  // Mapa estreito (celular): mostra só os números, em letra maior.
+  const ajustarTamanho = () => mapa.classList.toggle("lg-compacto", mapa.clientWidth < 500);
+  ajustarTamanho();
+  window.addEventListener("resize", ajustarTamanho);
+
+  layoutAtualizarPainel();
+}
+
 function criarBlocoLancamento(lancamento) {
   if (!lancamento) return "";
 
   const botoesCompra = CONTATOS_OFICIAIS.map(
-    (c) => `
-        <a class="botao botao-whatsapp" href="${waLink(`Olá ${c.nome}! ${lancamento.mensagemCompra}`, c.whatsapp)}" target="_blank" rel="noopener">
+    (c, i) => `
+        <a class="botao botao-whatsapp" data-contato="${i}" href="${waLink(mensagemCompra(c), c.whatsapp)}" target="_blank" rel="noopener">
           ${iconeWhatsapp()} Comprar com a ${c.nome}
         </a>`
   ).join("");
@@ -293,6 +725,9 @@ function abrirVendas(contador) {
   document.getElementById("chopp-lancamento-texto").textContent =
     "Os lotes de ingressos e os combos com barril de chopp já estão à venda pelo WhatsApp da Andréia e da Raquel.";
   document.getElementById("chopp-lancamento-compra").hidden = false;
+  // O painel do layout passa a mostrar os botões para enviar a escolha.
+  layoutEstado.vendasAbertas = true;
+  layoutAtualizarPainel();
 }
 
 function criarSecaoChopp(evento) {
@@ -319,6 +754,7 @@ function criarSecaoChopp(evento) {
         ${criarBlocoTimeline(evento.programacao)}
         ${criarGradeDestaques(evento.destaquesEvento)}
         ${criarBlocoChopps(evento.chopps)}
+        ${criarBlocoLayout(evento.layoutGinasio)}
         ${criarBlocoLancamento(evento.lancamentoLotes)}
         ${criarBlocoPatrocinadores(evento.patrocinadores)}
       </div>
@@ -345,10 +781,6 @@ function renderizarEventos() {
   document.getElementById("agenda-container").innerHTML = restantes.length
     ? restantes.map(criarCardAgenda).join("")
     : `<p class="agenda-vazia">Novos eventos em breve. Fale com a Andréia pelo WhatsApp para saber mais!</p>`;
-
-  if (destaque.tema === "chopp") {
-    iniciarContagemRegressiva();
-  }
 }
 
 function montarLinksLocalizacao() {
@@ -420,6 +852,8 @@ function parseFacebookPagePlugin() {
 document.addEventListener("DOMContentLoaded", () => {
   const passos = [
     renderizarEventos,
+    iniciarLayoutGinasio,
+    iniciarContagemRegressiva,
     montarLinksLocalizacao,
     montarWhatsappFlutuante,
     montarRedesSociais,
