@@ -1361,6 +1361,250 @@ section {
   border-radius: 999px;
 }
 
+/* --- Tabela de preços (aparece na abertura das vendas) --- */
+#tabela-precos {
+  scroll-margin-top: 96px;
+}
+
+.chopp-precos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 48px;
+}
+
+.chopp-precos-grupo {
+  background: #fff;
+  border: 1px solid rgba(36, 21, 9, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 10px 24px rgba(36, 21, 9, 0.08);
+}
+
+.chopp-precos-grupo h5 {
+  font-size: 1.15rem;
+  color: var(--chopp-azul);
+  margin: 0 0 14px;
+}
+
+.chopp-preco {
+  margin: 0;
+  font-family: "Bevan", serif;
+  font-weight: 400;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  color: var(--chopp-vermelho);
+  white-space: nowrap;
+}
+
+/* Lotes de ingresso */
+.chopp-lotes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.chopp-lote {
+  background: var(--chopp-creme);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.chopp-lote-a-venda {
+  background: #fff8e8;
+  border-color: var(--chopp-dourado);
+}
+
+.chopp-lote-em-breve {
+  background: #f4f0e8;
+}
+
+.chopp-lote-em-breve .chopp-preco {
+  color: #7a6a58;
+}
+
+.chopp-lote p {
+  margin: 0;
+}
+
+/* O preço fica à direita, na linha do nome; se não couber, desce alinhado à direita. */
+.chopp-lote-nome .chopp-preco {
+  margin-left: auto;
+}
+
+.chopp-lote-nome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+.chopp-lote-nome strong {
+  font-family: "Bevan", serif;
+  font-weight: 400;
+  font-size: 1.15rem;
+  color: var(--chopp-marrom);
+}
+
+.chopp-lote-selo {
+  display: inline-block;
+  vertical-align: 1px;
+  margin-right: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: #e6dccb;
+  color: #5b4a36;
+}
+
+.chopp-lote-a-venda .chopp-lote-selo {
+  background: #1f7a3a;
+  color: #fff;
+}
+
+.chopp-lote-detalhe {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--chopp-marrom-claro);
+  margin-top: 4px !important;
+}
+
+.chopp-lote-chamada {
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: var(--chopp-vermelho);
+  margin-top: 2px !important;
+}
+
+/* Barris de chopp */
+.chopp-barris-inclui-titulo {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--chopp-marrom);
+}
+
+.chopp-barris-inclui {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chopp-barris-inclui li {
+  background: var(--chopp-azul);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.chopp-barris-marca + .chopp-barris-marca {
+  margin-top: 12px;
+}
+
+.chopp-barris-marca h6 {
+  margin: 0 0 2px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--chopp-dourado-escuro);
+}
+
+.chopp-barris-marca ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chopp-barris-marca li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed rgba(36, 21, 9, 0.16);
+}
+
+.chopp-barris-marca li:last-child {
+  border-bottom: 0;
+}
+
+.chopp-barris-marca .chopp-copo-cor {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 26px;
+  box-shadow: inset 0 0 0 1.5px rgba(36, 21, 9, 0.25);
+}
+
+.chopp-barris-nome {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--chopp-marrom);
+}
+
+.chopp-barris-nome small {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--chopp-marrom-claro);
+}
+
+.chopp-barris-marca .chopp-preco {
+  font-size: 1.1rem;
+}
+
+.chopp-precos-nota {
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--chopp-marrom-claro);
+}
+
+@media (max-width: 860px) {
+  .chopp-precos {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 560px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .chopp-precos-grupo {
+    padding: 16px 14px;
+  }
+
+  .chopp-lote {
+    padding: 10px 12px;
+  }
+
+  .chopp-preco {
+    font-size: 1.15rem;
+  }
+
+  .chopp-barris-marca li {
+    gap: 10px;
+  }
+
+  .chopp-barris-marca .chopp-preco {
+    font-size: 1.02rem;
+  }
+}
+
 /* --- Layout do ginásio (mapa em que o visitante marca chopeira e mesa) --- */
 #layout-ginasio {
   scroll-margin-top: 96px;
@@ -1548,7 +1792,12 @@ section {
   background: rgba(255, 255, 255, 0.85);
 }
 
+/* Moldura só para quem usa o teclado; no toque o foco vai para cá sem moldura. */
 .lg-reserva-titulo:focus {
+  outline: none;
+}
+
+.lg-reserva-titulo:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 3px;
 }
@@ -1616,23 +1865,6 @@ section {
   letter-spacing: 0.02em;
 }
 
-.lg-reservar {
-  width: 100%;
-  justify-content: center;
-  margin: 2px 0 12px;
-  background: var(--chopp-dourado);
-  color: var(--chopp-marrom);
-  font-size: 1.02rem;
-  cursor: pointer;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
-}
-
-.lg-reservar:disabled {
-  opacity: 0.75;
-  cursor: progress;
-  transform: none;
-}
-
 .lg-acoes {
   display: flex;
   flex-wrap: wrap;
@@ -1697,6 +1929,21 @@ section {
 
 .lg-enviar .botao {
   justify-content: center;
+}
+
+/* "Envie para apenas uma delas:" acima dos dois botões */
+.lg-enviar-titulo {
+  margin: 0;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--chopp-dourado);
+}
+
+/* Enquanto o site reserva, antes de abrir o WhatsApp */
+.lg-enviar.lg-ocupado .botao {
+  opacity: 0.75;
+  cursor: progress;
+  transform: none;
 }
 
 .lg-limpar {
@@ -1988,6 +2235,12 @@ html.lg-zoom-aberto body {
   gap: 12px;
 }
 
+.chopp-lancamento-uma {
+  margin: 12px 0 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
 .chopp-lancamento .chopp-alerta-golpe {
   margin: 22px auto 0;
   font-size: 0.92rem;
@@ -2248,11 +2501,6 @@ html.lg-zoom-aberto body {
 @media (max-width: 360px) {
   .lg-escolha strong {
     font-size: 1.1rem;
-  }
-
-  .lg-reservar {
-    padding-left: 12px;
-    padding-right: 12px;
   }
 
   .chopp-timeline-item {
