@@ -130,6 +130,37 @@ const EVENTS = [
       barril: "Você pode escolher o tipo de chopp e comprar um barril exclusivo para o seu grupo, de 50 ou 30 litros — ideal para amigos, família e empresas. Garanta o seu e brinde essa noite especial!",
       tamanhosBarril: ["50 litros", "30 litros"],
     },
+    // Tabela de preços enviada pela organização em 09/11/2026. Fica escondida e
+    // aparece sozinha na abertura das vendas (LANCAMENTO_LOTES), junto com os
+    // botões de compra. Situação do lote: "a-venda" ou "em-breve".
+    tabelaPrecos: {
+      lotesTitulo: "Ingressos liberados por lote",
+      lotes: [
+        { nome: "Lote 1", detalhe: "Promocional antecipado · poucas unidades", valor: "R$ 55,00", situacao: "a-venda" },
+        { nome: "Lote 2", detalhe: "Antecipado · ainda não liberado", valor: "R$ 65,00", situacao: "em-breve" },
+        { nome: "Lote 3", detalhe: "Na hora você vai pagar mais caro.", chamada: "Faça sua reserva agora mesmo.", situacao: "em-breve" },
+      ],
+      barrisTitulo: "Barris de chopp",
+      barrilInclui: ["Mesa com chopeira", "4 cadeiras", "1 ingresso", "Copo temático do baile"],
+      barris: [
+        {
+          marca: "Imigração Pilsen",
+          itens: [
+            { nome: "30 litros", valor: "R$ 1.000,00", cor: "#f2b632" },
+            { nome: "50 litros", valor: "R$ 1.500,00", cor: "#f2b632" },
+          ],
+        },
+        {
+          marca: "Roleta Russa",
+          itens: [
+            { nome: "Pilsen Extrema · 50 litros", valor: "R$ 1.500,00", cor: "#d9732a" },
+            { nome: "Easy IPA · 50 litros", valor: "R$ 1.700,00", cor: "#eba12a" },
+            { nome: "IPA · 50 litros", valor: "R$ 1.900,00", cor: "#9e2f25" },
+          ],
+        },
+      ],
+      nota: "Os primeiros a realizarem sua reserva vão receber um copo temático do Baile do Chopp com tira.",
+    },
     // Layout do ginásio enviado pela organização em 05/11/2026: chopeiras 1 a 13
     // na parede da esquerda, 14 a 18 na da direita e mesas 1 a 20 no centro.
     // Posições vendidas ganham a inscrição "VENDIDA" e não podem mais ser marcadas.

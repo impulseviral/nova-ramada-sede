@@ -1645,6 +1645,68 @@ function iniciarLayoutGinasio() {
   });
 }
 
+// Tabela de preços (lotes de ingresso e barris). Começa escondida e aparece na
+// abertura das vendas, junto com os botões de compra (ver abrirVendas).
+function criarBlocoPrecos(precos) {
+  if (!precos) return "";
+  const selos = { "a-venda": "À venda", "em-breve": "Em breve" };
+  const lotes = (precos.lotes || [])
+    .map(
+      (l) => `
+        <li class="chopp-lote chopp-lote-${l.situacao}">
+          <div class="chopp-lote-info">
+            <p class="chopp-lote-nome"><strong>${l.nome}</strong>${selos[l.situacao] ? `<span class="chopp-lote-selo">${selos[l.situacao]}</span>` : ""}</p>
+            <p class="chopp-lote-detalhe">${l.detalhe}</p>
+            ${l.chamada ? `<p class="chopp-lote-chamada">${l.chamada}</p>` : ""}
+          </div>
+          ${l.valor ? `<p class="chopp-preco">${l.valor.replace(" ", "&nbsp;")}</p>` : ""}
+        </li>`
+    )
+    .join("");
+  const inclui = (precos.barrilInclui || []).map((item) => `<li>${item}</li>`).join("");
+  const barris = (precos.barris || [])
+    .map(
+      (b) => `
+        <div class="chopp-barris-marca">
+          <h6>${b.marca}</h6>
+          <ul>
+            ${b.itens
+              .map(
+                (i) => `
+            <li style="--cor-chopp: ${i.cor || "#e8a83c"};">
+              <span class="chopp-copo-cor" aria-hidden="true"></span>
+              <span class="chopp-barris-nome">${i.nome}</span>
+              <strong class="chopp-preco">${i.valor.replace(" ", "&nbsp;")}</strong>
+            </li>`
+              )
+              .join("")}
+          </ul>
+        </div>`
+    )
+    .join("");
+
+  return `
+    <div class="chopp-precos-bloco" id="tabela-precos" hidden>
+      <div class="chopp-bloco-titulo">
+        <span class="chopp-etiqueta">Valores</span>
+        <h4>Tabela de preços</h4>
+      </div>
+      <div class="chopp-precos">
+        <section class="chopp-precos-grupo" aria-labelledby="precos-lotes">
+          <h5 id="precos-lotes">${precos.lotesTitulo}</h5>
+          <ul class="chopp-lotes">${lotes}</ul>
+        </section>
+        <section class="chopp-precos-grupo" aria-labelledby="precos-barris">
+          <h5 id="precos-barris">${precos.barrisTitulo}</h5>
+          ${inclui ? `<p class="chopp-barris-inclui-titulo">Cada barril inclui:</p><ul class="chopp-barris-inclui">${inclui}</ul>` : ""}
+          ${barris}
+        </section>
+        ${precos.nota ? `<p class="chopp-precos-nota">* ${precos.nota}</p>` : ""}
+      </div>
+    </div>
+  `;
+}
+
 function criarBlocoLancamento(lancamento) {
   if (!lancamento) return "";
 
@@ -1675,6 +1737,14 @@ function criarBlocoLancamento(lancamento) {
 function iniciarContagemRegressiva() {
   const container = document.getElementById("chopp-countdown");
   if (!container) return;
+
+  // Só nas prévias do Netlify: com ?simular-abertura no endereço, a página já
+  // aparece como fica depois da abertura (tabela de preços e botões de compra).
+  const previa = /^deploy-preview-\d+--/.test(location.hostname) || location.hostname === "localhost";
+  if (previa && /[?&]simular-abertura\b/.test(location.search)) {
+    abrirVendas(container);
+    return;
+  }
 
   const alvo = new Date(container.dataset.lancamento).getTime();
   const elDias = document.getElementById("cd-dias");
@@ -1714,7 +1784,11 @@ function abrirVendas(contador) {
   document.getElementById("chopp-lancamento-texto").textContent =
     "Os lotes de ingressos e os combos com barril de chopp já estão à venda pelo WhatsApp da Andréia e da Raquel.";
   document.getElementById("chopp-lancamento-compra").hidden = false;
-  document.getElementById("chopp-lancamento-uma").hidden = false;
+  // Peças novas com teste de existência: um erro aqui não pode impedir a abertura.
+  const umaDelas = document.getElementById("chopp-lancamento-uma");
+  if (umaDelas) umaDelas.hidden = false;
+  const precos = document.getElementById("tabela-precos");
+  if (precos) precos.hidden = false;
   // O painel do layout passa a mostrar os botões do WhatsApp e o mapa é lido mais vezes.
   layoutEstado.vendasAbertas = true;
   layoutAtualizarPainel();
@@ -1758,6 +1832,7 @@ function criarSecaoChopp(evento) {
         ${criarBlocoTimeline(evento.programacao)}
         ${criarGradeDestaques(evento.destaquesEvento)}
         ${criarBlocoChopps(evento.chopps)}
+        ${blocoSeguro(() => criarBlocoPrecos(evento.tabelaPrecos))}
         ${blocoSeguro(() => criarBlocoLayout(evento.layoutGinasio))}
         ${criarBlocoLancamento(evento.lancamentoLotes)}
         ${criarBlocoPatrocinadores(evento.patrocinadores)}
