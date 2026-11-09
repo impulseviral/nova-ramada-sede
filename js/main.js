@@ -236,12 +236,14 @@ const LAYOUT_RESERVA = "baile-chopp-2026-reserva"; // reserva viva deste aparelh
 const LAYOUT_DISPOSITIVO = "baile-chopp-2026-dispositivo"; // identificador aleatório do aparelho
 const LAYOUT_API = "/api/reservas";
 const LAYOUT_MAX_POSICOES = 6; // igual ao limite do servidor
+// Quando o site não consegue reservar, a escolha segue pelo WhatsApp do mesmo jeito.
+const LAYOUT_SEM_RESERVA = "Sua escolha vai pelo WhatsApp mesmo assim, e a Andréia ou a Raquel confere se as posições estão livres.";
 const layoutEstado = {
   escolhas: [], // ex.: ["chopeira-5", "mesa-12"]
   vendidasBase: [], // escritas no events.js
   vendidas: [], // events.js + planilha
   reservadas: {}, // posição -> horário-limite (ISO) ou "" (reservada pela organização); sem as minhas
-  minhaReserva: null, // { codigo, posicoes, ate, desde }
+  minhaReserva: null, // { codigo, posicoes, ate, desde, contato (índice de quem recebeu) }
   perdidas: [],
   planilha: "",
   dispositivo: "",
@@ -253,6 +255,7 @@ const layoutEstado = {
   ultimaBusca: 0,
   timerBusca: null,
   reservando: false,
+  enviandoPara: null, // índice do contato cujo botão está reservando
   erroReserva: "",
   vendasAbertas: false,
   salvaNoAparelho: false,
@@ -378,15 +381,29 @@ function textoFaltam(ms) {
 }
 
 // ----- Mensagens de WhatsApp -----
-// Leva a reserva (com código e horário-limite) ou, sem reserva, as posições marcadas.
+// Uma posição por linha, com o lugar dela no ginásio.
+// Ex.: "• Mesa 3: 1ª fileira, a mais perto do palco, no meio".
+function layoutLinhasMensagem(chaves) {
+  return layoutOrdenar(chaves)
+    .map((chave) => {
+      const lugar = layoutPosicao(chave).replace(" · ", ", ");
+      return `• ${layoutNome(chave)}: ${lugar.charAt(0).toLowerCase()}${lugar.slice(1)}`;
+    })
+    .join("\n");
+}
+
+// Leva a reserva (posições, código e horário-limite) ou, sem reserva, as posições marcadas.
 function mensagemCompra(contato) {
   let texto = `Olá ${contato.nome}! ${LANCAMENTO_LOTES.mensagemCompra}`;
   const reserva = layoutEstado.minhaReserva;
   if (reserva) {
     const ate = Date.parse(reserva.ate);
-    texto += ` Reservei pelo site: ${juntarComE(layoutOrdenar(reserva.posicoes).map(layoutNome))} (código ${reserva.codigo}, válida até ${horaCurta(ate)} de ${dataCurta(ate)}).`;
+    texto += `\n\nReservei pelo site:\n${layoutLinhasMensagem(reserva.posicoes)}\n\nCódigo da reserva: ${reserva.codigo}\nVálida até ${horaCurta(ate)} de ${dataCurta(ate)}.`;
+    // Marcadas depois da reserva e que o site não conseguiu reservar.
+    const extras = layoutEstado.escolhas.filter((c) => reserva.posicoes.indexOf(c) === -1);
+    if (extras.length) texto += `\n\nTambém escolhi no layout (sem reserva):\n${layoutLinhasMensagem(extras)}`;
   } else if (layoutEstado.escolhas.length) {
-    texto += ` No layout do ginásio, escolhi: ${juntarComE(layoutOrdenar(layoutEstado.escolhas).map(layoutNome))}.`;
+    texto += `\n\nNo layout do ginásio, escolhi:\n${layoutLinhasMensagem(layoutEstado.escolhas)}`;
   }
   return texto;
 }
@@ -396,6 +413,25 @@ function atualizarLinksCompra() {
     const contato = CONTATOS_OFICIAIS[Number(a.getAttribute("data-contato"))];
     if (contato) a.href = waLink(mensagemCompra(contato), contato.whatsapp);
   });
+}
+
+// Abre a conversa depois que a reserva volta do servidor. No computador, tenta
+// outra aba, como os links; no celular (ou se o navegador bloquear a aba), abre
+// na mesma página, e o celular passa para o app do WhatsApp.
+function abrirWhatsapp(link) {
+  const computador = Boolean(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+  if (computador) {
+    const janela = window.open(link, "_blank");
+    if (janela) {
+      try {
+        janela.opener = null;
+      } catch (erro) {
+        // sem acesso à outra aba: tudo bem
+      }
+      return;
+    }
+  }
+  window.location.href = link;
 }
 
 // ----- Desenho do mapa -----
@@ -587,9 +623,9 @@ function criarBlocoLayout(layout) {
   });
   const botoesEnviar = CONTATOS_OFICIAIS.map(
     (c, i) => `
-          <a class="botao botao-whatsapp" data-contato="${i}" href="${waLink(mensagemCompra(c), c.whatsapp)}" target="_blank" rel="noopener">
-            ${iconeWhatsapp()} Enviar para a ${c.nome}
-          </a>`
+            <a class="botao botao-whatsapp" data-contato="${i}" href="${waLink(mensagemCompra(c), c.whatsapp)}" target="_blank" rel="noopener">
+              ${iconeWhatsapp()} <span class="lg-enviar-texto">Enviar para a ${c.nome}</span>
+            </a>`
   ).join("");
 
   return `
@@ -616,8 +652,9 @@ function criarBlocoLayout(layout) {
             <p class="lg-reserva-codigo" id="lg-reserva-codigo"></p>
           </div>
           <ul class="lg-escolhas" id="lg-escolhas"></ul>
-          <button type="button" class="botao lg-reservar" id="lg-reservar" hidden>Reservar por 1 hora</button>
-          <div class="lg-enviar" id="lg-enviar" hidden>${botoesEnviar}</div>
+          <div class="lg-enviar" id="lg-enviar" hidden>
+            <p class="lg-enviar-titulo">Envie para apenas uma delas:</p>${botoesEnviar}
+          </div>
           <div class="lg-acoes">
             <button type="button" class="lg-limpar" id="lg-limpar" hidden>Limpar escolha</button>
             <button type="button" class="lg-limpar" id="lg-cancelar" hidden>Cancelar reserva</button>
@@ -1171,8 +1208,13 @@ function layoutPedirAoServidor(corpo) {
   );
 }
 
-function layoutReservar() {
-  if (layoutEstado.reservando) return;
+// Toque num botão do WhatsApp do painel com posições ainda não reservadas:
+// reserva por 1 hora e abre a conversa já com a reserva na mensagem. Se o site
+// não conseguir reservar (fora do ar, pausado, limite), a conversa abre com a
+// escolha mesmo assim; só não abre quando alguém já pegou a posição.
+function layoutReservarEEnviar(indice) {
+  const contato = CONTATOS_OFICIAIS[indice];
+  if (layoutEstado.reservando || !contato) return;
   const posicoes = layoutOrdenar(layoutEstado.escolhas);
   if (!posicoes.length) return;
   if (posicoes.length > LAYOUT_MAX_POSICOES) {
@@ -1181,8 +1223,89 @@ function layoutReservar() {
     return;
   }
   layoutEstado.reservando = true;
+  layoutEstado.enviandoPara = indice;
   layoutEstado.erroReserva = "";
   layoutAtualizarPainel();
+
+  const terminar = () => {
+    layoutEstado.reservando = false;
+    layoutEstado.enviandoPara = null;
+  };
+  const enviarMesmoAssim = (motivo) => {
+    if (motivo) layoutEstado.erroReserva = `${motivo} ${LAYOUT_SEM_RESERVA}`;
+    layoutAtualizarPainel();
+    abrirWhatsapp(waLink(mensagemCompra(contato), contato.whatsapp));
+  };
+  const tratarResposta = (r) => {
+    terminar();
+    if (r.dados.agora) layoutAjustarRelogio(r.dados.agora);
+    if (r.status === 200 && r.dados.ok && r.dados.reserva) {
+      layoutEstado.apiOk = true;
+      layoutEstado.falhasApi = 0;
+      layoutEstado.minhaReserva = Object.assign({}, r.dados.reserva, { desde: Date.now(), contato: indice });
+      layoutSalvarReserva();
+      layoutEstado.escolhas = r.dados.reserva.posicoes.slice();
+      layoutSalvar();
+      layoutEstado.minhaReserva.posicoes.forEach((p) => delete layoutEstado.reservadas[p]);
+      document.getElementById("lg-perdidas").hidden = true;
+      layoutRedesenharMapa();
+      layoutAtualizarPainel();
+      layoutIniciarContagemReserva();
+      const ate = Date.parse(r.dados.reserva.ate);
+      layoutMostrarAviso(`Reservado até ${horaCurta(ate)} ✓`, `Abrindo o WhatsApp da ${contato.nome}...`);
+      // O foco vai para a caixa da reserva, que é o que a pessoa vê ao voltar do WhatsApp.
+      document.getElementById("lg-reserva-titulo").focus();
+      document.getElementById("lg-status").textContent = `Reserva feita: ${juntarComE(layoutOrdenar(posicoes).map(layoutNome))}, até ${horaCurta(ate)}. Código ${r.dados.reserva.codigo}. Abrindo o WhatsApp da ${contato.nome}.`;
+      abrirWhatsapp(waLink(mensagemCompra(contato), contato.whatsapp));
+      return;
+    }
+    if (r.status === 409 && Array.isArray(r.dados.ocupadas)) {
+      // Alguém pegou antes: o WhatsApp não abre e a pessoa escolhe outra posição.
+      const perdidas = [];
+      r.dados.ocupadas.forEach((o) => {
+        if (!o || !layoutChaveValida(o.posicao)) return;
+        if (o.situacao === "vendida") {
+          if (layoutEstado.vendidas.indexOf(o.posicao) === -1) layoutEstado.vendidas.push(o.posicao);
+        } else {
+          layoutEstado.reservadas[o.posicao] = o.ate || "";
+        }
+        perdidas.push({ chave: o.posicao, situacao: o.situacao });
+      });
+      const fora = perdidas.map((p) => p.chave);
+      layoutEstado.escolhas = layoutEstado.escolhas.filter((c) => fora.indexOf(c) === -1);
+      layoutSalvar();
+      layoutMostrarPerdidas(perdidas);
+      if (perdidas.length) layoutMostrarToque(perdidas[0].chave, perdidas[0].situacao === "vendida" ? "vendida" : "reservada-agora");
+      layoutRedesenharMapa();
+      layoutAtualizarPainel();
+      layoutBuscarEstado(true);
+      return;
+    }
+    if (r.status === 403 && r.dados.motivo === "fechado") {
+      layoutEstado.erroReserva = `As reservas abrem em ${LANCAMENTO_LOTES.label}.`;
+      layoutAtualizarPainel();
+      return;
+    }
+    if (r.status === 400 && r.dados.motivo === "muitas") {
+      layoutEstado.erroReserva = `Reserve até ${LAYOUT_MAX_POSICOES} posições de cada vez. Desmarque algumas e tente de novo.`;
+      layoutAtualizarPainel();
+      return;
+    }
+    // A reserva pelo site não deu, mas a conversa abre com a escolha.
+    if (r.status === 403 && r.dados.motivo === "pausadas") {
+      layoutEstado.reservasLigadas = false;
+      enviarMesmoAssim();
+    } else if (r.status === 503 && r.dados.motivo === "planilha") {
+      layoutEstado.planilhaOk = false;
+      enviarMesmoAssim();
+    } else if (r.status === 429) {
+      layoutEstado.reservaBloqueada = true;
+      enviarMesmoAssim("Muitas posições já foram reservadas a partir desta mesma internet (Wi-Fi ou operadora).");
+    } else {
+      layoutEstado.apiOk = false;
+      enviarMesmoAssim("A reserva pelo site não funcionou agora.");
+    }
+  };
 
   const pedido = { acao: "reservar", posicoes, dispositivo: layoutDispositivo() };
   // Se o servidor estiver muito disputado (503), tenta mais uma vez depois de 1,5 s.
@@ -1192,74 +1315,11 @@ function layoutReservar() {
         ? new Promise((ok) => setTimeout(ok, 1500)).then(() => layoutPedirAoServidor(pedido))
         : r
     )
-    .then((r) => {
-      layoutEstado.reservando = false;
-      if (r.dados.agora) layoutAjustarRelogio(r.dados.agora);
-      if (r.status === 200 && r.dados.ok && r.dados.reserva) {
-        layoutEstado.apiOk = true;
-        layoutEstado.falhasApi = 0;
-        layoutEstado.minhaReserva = Object.assign({}, r.dados.reserva, { desde: Date.now() });
-        layoutSalvarReserva();
-        layoutEstado.escolhas = r.dados.reserva.posicoes.slice();
-        layoutSalvar();
-        layoutEstado.minhaReserva.posicoes.forEach((p) => delete layoutEstado.reservadas[p]);
-        document.getElementById("lg-perdidas").hidden = true;
-        layoutRedesenharMapa();
-        layoutAtualizarPainel();
-        const ate = Date.parse(r.dados.reserva.ate);
-        layoutMostrarAviso(`Reservado até ${horaCurta(ate)} ✓`, "Agora envie para a Andréia ou a Raquel.");
-        // Leva os botões de WhatsApp para a tela e o foco para a caixa da reserva.
-        const enviar = document.getElementById("lg-enviar");
-        if (enviar.scrollIntoView) enviar.scrollIntoView({ block: "nearest" });
-        document.getElementById("lg-reserva-titulo").focus();
-        document.getElementById("lg-status").textContent = `Reserva feita: ${juntarComE(layoutOrdenar(posicoes).map(layoutNome))}, até ${horaCurta(ate)}. Código ${r.dados.reserva.codigo}.`;
-        layoutIniciarContagemReserva();
-        return;
-      }
-      if (r.status === 409 && Array.isArray(r.dados.ocupadas)) {
-        const perdidas = [];
-        r.dados.ocupadas.forEach((o) => {
-          if (!o || !layoutChaveValida(o.posicao)) return;
-          if (o.situacao === "vendida") {
-            if (layoutEstado.vendidas.indexOf(o.posicao) === -1) layoutEstado.vendidas.push(o.posicao);
-          } else {
-            layoutEstado.reservadas[o.posicao] = o.ate || "";
-          }
-          perdidas.push({ chave: o.posicao, situacao: o.situacao });
-        });
-        const fora = perdidas.map((p) => p.chave);
-        layoutEstado.escolhas = layoutEstado.escolhas.filter((c) => fora.indexOf(c) === -1);
-        layoutSalvar();
-        layoutMostrarPerdidas(perdidas);
-        if (perdidas.length) layoutMostrarToque(perdidas[0].chave, perdidas[0].situacao === "vendida" ? "vendida" : "reservada-agora");
-        layoutRedesenharMapa();
-        layoutAtualizarPainel();
-        layoutBuscarEstado(true);
-        return;
-      }
-      if (r.status === 403 && r.dados.motivo === "pausadas") {
-        layoutEstado.reservasLigadas = false;
-      } else if (r.status === 403 && r.dados.motivo === "fechado") {
-        layoutEstado.erroReserva = `As reservas abrem em ${LANCAMENTO_LOTES.label}.`;
-      } else if (r.status === 503 && r.dados.motivo === "planilha") {
-        layoutEstado.planilhaOk = false;
-      } else if (r.status === 429) {
-        layoutEstado.reservaBloqueada = true;
-        layoutEstado.erroReserva = "Muitas posições já foram reservadas a partir desta mesma internet (Wi-Fi ou operadora). Envie sua escolha para a Andréia ou a Raquel.";
-      } else if (r.status === 400 && r.dados.motivo === "muitas") {
-        layoutEstado.erroReserva = `Reserve até ${LAYOUT_MAX_POSICOES} posições de cada vez.`;
-      } else {
-        // Serviço fora do ar: a pessoa ainda pode mandar a escolha pelo WhatsApp.
-        layoutEstado.apiOk = false;
-        layoutEstado.erroReserva = "Não foi possível reservar agora. Envie sua escolha para a Andréia ou a Raquel, que elas conferem se as posições estão livres.";
-      }
-      layoutAtualizarPainel();
-    })
-    .catch(() => {
-      layoutEstado.reservando = false;
+    .then(tratarResposta, () => {
+      // Sem resposta (internet ou serviço fora do ar).
+      terminar();
       layoutEstado.apiOk = false;
-      layoutEstado.erroReserva = "Não foi possível reservar agora. Envie sua escolha para a Andréia ou a Raquel, que elas conferem se as posições estão livres.";
-      layoutAtualizarPainel();
+      enviarMesmoAssim("A reserva pelo site não funcionou agora.");
     });
 }
 
@@ -1292,7 +1352,7 @@ function layoutIniciarContagemReserva() {
       clearInterval(layoutEstado.timerContagem);
       layoutEstado.minhaReserva = null;
       layoutSalvarReserva();
-      layoutAvisoPainel(`Sua reserva pelo site expirou às ${horaCurta(ate)}. Se as posições continuarem livres no mapa, você pode reservar de novo.`, "info");
+      layoutAvisoPainel(`Sua reserva pelo site expirou às ${horaCurta(ate)}. Se as posições continuarem livres no mapa, toque de novo no botão do WhatsApp para reservar outra vez.`, "info");
       layoutMostrarAviso("Sua reserva expirou", "Confira o mapa antes de reservar de novo.");
       layoutRedesenharMapa();
       layoutBuscarEstado(true);
@@ -1336,37 +1396,53 @@ function layoutAtualizarPainel(chaveNova) {
     document.getElementById("lg-reserva-codigo").textContent = `Código da reserva: ${reserva.codigo}`;
   }
 
-  const botaoReservar = document.getElementById("lg-reservar");
-  botaoReservar.hidden = !(possiveis && !vazio && (!reserva || mudouEscolha));
-  botaoReservar.disabled = layoutEstado.reservando;
-  botaoReservar.textContent = layoutEstado.reservando ? "Reservando..." : reserva ? "Atualizar reserva" : "Reservar por 1 hora";
-
-  // Depois da abertura: envia a reserva; sem reserva possível, envia a escolha.
-  document.getElementById("lg-enviar").hidden = !layoutEstado.vendasAbertas || (reserva ? false : possiveis || vazio);
+  // Depois da abertura, os botões do WhatsApp aparecem assim que há posição marcada.
+  // O toque reserva por 1 hora (se ainda não estiver reservado) e abre a conversa.
+  const enviar = document.getElementById("lg-enviar");
+  enviar.hidden = !layoutEstado.vendasAbertas || vazio;
+  enviar.classList.toggle("lg-ocupado", layoutEstado.reservando);
+  enviar.querySelectorAll("a[data-contato]").forEach((a) => {
+    const indice = Number(a.getAttribute("data-contato"));
+    const contato = CONTATOS_OFICIAIS[indice];
+    const rotulo = a.querySelector(".lg-enviar-texto");
+    if (layoutEstado.reservando) a.setAttribute("aria-disabled", "true");
+    else a.removeAttribute("aria-disabled");
+    if (rotulo && contato) {
+      rotulo.textContent = layoutEstado.reservando && layoutEstado.enviandoPara === indice ? "Reservando..." : `Enviar para a ${contato.nome}`;
+    }
+  });
   document.getElementById("lg-limpar").hidden = vazio || Boolean(reserva);
   document.getElementById("lg-cancelar").hidden = !reserva;
 
   let aviso;
   if (!layoutEstado.vendasAbertas) {
-    aviso = `Marcar no layout não reserva o lugar. Na abertura das vendas, em ${LANCAMENTO_LOTES.label}, você poderá reservar por 1 hora as posições marcadas e enviar pelo WhatsApp da Andréia ou da Raquel.`;
-  } else if (reserva && vazio) {
-    aviso = "Você desmarcou todas as posições. Toque em Cancelar reserva para liberá-las.";
-  } else if (reserva) {
-    const ate = Date.parse(reserva.ate);
-    aviso = `Envie agora para a Andréia ou a Raquel e confirme a compra até ${horaCurta(ate)}. Depois desse horário a reserva cai e as posições voltam a ficar livres para outras pessoas.`;
-    if (mudouEscolha) aviso += " Você mudou a escolha: toque em Atualizar reserva para segurar as novas posições (o horário não muda).";
+    aviso = `Marcar no layout ainda não reserva o lugar. Na abertura das vendas, em ${LANCAMENTO_LOTES.label}, aparecem aqui os botões para enviar sua escolha pelo WhatsApp da Andréia ou da Raquel. Ao tocar, o site segura as posições por 1 hora.`;
   } else if (layoutEstado.erroReserva) {
     aviso = layoutEstado.erroReserva;
+  } else if (reserva && vazio) {
+    aviso = "Você desmarcou todas as posições. Para liberar a reserva, toque em Cancelar reserva. Se foi sem querer, toque de novo nas posições no layout.";
+  } else if (reserva && mudouEscolha && possiveis) {
+    aviso = "Você mudou a escolha. Toque no botão do WhatsApp para atualizar a reserva (o horário não muda) e enviar a nova escolha.";
+  } else if (reserva) {
+    const ate = Date.parse(reserva.ate);
+    const escolhida = CONTATOS_OFICIAIS[reserva.contato];
+    const prazo = "Depois desse horário, a reserva pelo site cai e as posições voltam a ficar livres.";
+    if (escolhida) {
+      const outras = CONTATOS_OFICIAIS.filter((c) => c !== escolhida).map((c) => `a ${c.nome}`);
+      aviso = `Você escolheu a ${escolhida.nome}: envie a mensagem por lá e confirme a compra com ela até ${horaCurta(ate)}. ${prazo} Não precisa mandar também para ${juntarComE(outras)}; se o WhatsApp não abriu, toque de novo no botão.`;
+    } else {
+      aviso = `Envie agora para a Andréia ou a Raquel e confirme a compra até ${horaCurta(ate)}. ${prazo}`;
+    }
   } else if (!layoutEstado.reservasLigadas) {
-    aviso = "As reservas pelo site estão pausadas pela organização. Envie sua escolha para a Andréia ou a Raquel.";
+    aviso = `As reservas pelo site estão pausadas pela organização. ${LAYOUT_SEM_RESERVA}`;
   } else if (!layoutEstado.planilhaOk) {
-    aviso = "A reserva pelo site está indisponível agora. Envie sua escolha para a Andréia ou a Raquel, que elas conferem se as posições estão livres.";
+    aviso = `A reserva pelo site está indisponível agora. ${LAYOUT_SEM_RESERVA}`;
   } else if (layoutEstado.apiOk === false) {
-    aviso = "A reserva pelo site está fora do ar agora. Envie sua escolha para a Andréia ou a Raquel, que elas conferem se as posições estão livres.";
+    aviso = `A reserva pelo site está fora do ar agora. ${LAYOUT_SEM_RESERVA}`;
   } else if (vazio) {
-    aviso = "Toque nas posições que você quer e depois em Reservar. A reserva segura as posições por 1 hora para você confirmar a compra com a Andréia ou a Raquel.";
+    aviso = "Toque nas posições que você quer no layout. Depois, envie pelo WhatsApp para a Andréia ou a Raquel: o site segura as posições por 1 hora para você confirmar a compra.";
   } else {
-    aviso = `A reserva segura as posições por 1 hora para você confirmar a compra com a Andréia ou a Raquel. Até ${LAYOUT_MAX_POSICOES} posições por reserva.`;
+    aviso = `Ao tocar, o site segura ${escolhas.length === 1 ? "a posição marcada" : "as posições marcadas"} por 1 hora e abre o WhatsApp com a sua escolha. Até ${LAYOUT_MAX_POSICOES} posições por reserva.`;
   }
   if (!vazio && !reserva && layoutEstado.salvaNoAparelho && !layoutEstado.vendasAbertas) aviso += " Sua escolha fica salva neste aparelho.";
   document.getElementById("lg-aviso").textContent = aviso;
@@ -1518,7 +1594,29 @@ function iniciarLayoutGinasio() {
     document.getElementById("lg-status").textContent = "Escolha limpa.";
     if (e.detail === 0) titulo.focus();
   });
-  document.getElementById("lg-reservar").addEventListener("click", layoutReservar);
+  document.getElementById("lg-enviar").addEventListener("click", (e) => {
+    const link = e.target.closest("a[data-contato]");
+    if (!link) return;
+    const indice = Number(link.getAttribute("data-contato"));
+    if (!CONTATOS_OFICIAIS[indice]) return;
+    if (layoutEstado.reservando) {
+      e.preventDefault();
+      return;
+    }
+    const reserva = layoutEstado.minhaReserva;
+    const escolhas = layoutEstado.escolhas;
+    if (layoutReservasPossiveis() && escolhas.length && (!reserva || !layoutMesmaLista(escolhas, reserva.posicoes))) {
+      e.preventDefault();
+      layoutReservarEEnviar(indice);
+      return;
+    }
+    // Já reservado (ou sem reserva possível): o próprio link abre o WhatsApp.
+    if (reserva && reserva.contato !== indice) {
+      reserva.contato = indice;
+      layoutSalvarReserva();
+      setTimeout(() => layoutAtualizarPainel(), 0);
+    }
+  });
   document.getElementById("lg-cancelar").addEventListener("click", (e) => {
     layoutCancelarReserva();
     if (e.detail === 0) titulo.focus();
@@ -1568,6 +1666,7 @@ function criarBlocoLancamento(lancamento) {
         <div><span id="cd-seg">00</span><label>seg</label></div>
       </div>
       <div class="chopp-lancamento-compra" id="chopp-lancamento-compra" hidden>${botoesCompra}</div>
+      <p class="chopp-lancamento-uma" id="chopp-lancamento-uma" hidden>Fale com apenas uma delas.</p>
       <p class="chopp-alerta-golpe">⚠️ Cuidado com golpes! <a href="#evite-golpes">Confira os únicos números oficiais da organização</a>.</p>
     </div>
   `;
@@ -1615,7 +1714,8 @@ function abrirVendas(contador) {
   document.getElementById("chopp-lancamento-texto").textContent =
     "Os lotes de ingressos e os combos com barril de chopp já estão à venda pelo WhatsApp da Andréia e da Raquel.";
   document.getElementById("chopp-lancamento-compra").hidden = false;
-  // O painel do layout passa a mostrar o botão de reservar e o mapa é lido mais vezes.
+  document.getElementById("chopp-lancamento-uma").hidden = false;
+  // O painel do layout passa a mostrar os botões do WhatsApp e o mapa é lido mais vezes.
   layoutEstado.vendasAbertas = true;
   layoutAtualizarPainel();
   if (document.getElementById("lg-mapa")) {

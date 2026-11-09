@@ -1616,23 +1616,6 @@ section {
   letter-spacing: 0.02em;
 }
 
-.lg-reservar {
-  width: 100%;
-  justify-content: center;
-  margin: 2px 0 12px;
-  background: var(--chopp-dourado);
-  color: var(--chopp-marrom);
-  font-size: 1.02rem;
-  cursor: pointer;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
-}
-
-.lg-reservar:disabled {
-  opacity: 0.75;
-  cursor: progress;
-  transform: none;
-}
-
 .lg-acoes {
   display: flex;
   flex-wrap: wrap;
@@ -1697,6 +1680,21 @@ section {
 
 .lg-enviar .botao {
   justify-content: center;
+}
+
+/* "Envie para apenas uma delas:" acima dos dois botões */
+.lg-enviar-titulo {
+  margin: 0;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--chopp-dourado);
+}
+
+/* Enquanto o site reserva, antes de abrir o WhatsApp */
+.lg-enviar.lg-ocupado .botao {
+  opacity: 0.75;
+  cursor: progress;
+  transform: none;
 }
 
 .lg-limpar {
@@ -1988,6 +1986,12 @@ html.lg-zoom-aberto body {
   gap: 12px;
 }
 
+.chopp-lancamento-uma {
+  margin: 12px 0 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
 .chopp-lancamento .chopp-alerta-golpe {
   margin: 22px auto 0;
   font-size: 0.92rem;
@@ -2248,11 +2252,6 @@ html.lg-zoom-aberto body {
 @media (max-width: 360px) {
   .lg-escolha strong {
     font-size: 1.1rem;
-  }
-
-  .lg-reservar {
-    padding-left: 12px;
-    padding-right: 12px;
   }
 
   .chopp-timeline-item {
