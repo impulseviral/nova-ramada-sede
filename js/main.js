@@ -1654,12 +1654,9 @@ function criarBlocoPrecos(precos) {
     .map(
       (l) => `
         <li class="chopp-lote chopp-lote-${l.situacao}">
-          <div class="chopp-lote-info">
-            <p class="chopp-lote-nome"><strong>${l.nome}</strong>${selos[l.situacao] ? `<span class="chopp-lote-selo">${selos[l.situacao]}</span>` : ""}</p>
-            <p class="chopp-lote-detalhe">${l.detalhe}</p>
-            ${l.chamada ? `<p class="chopp-lote-chamada">${l.chamada}</p>` : ""}
-          </div>
-          ${l.valor ? `<p class="chopp-preco">${l.valor.replace(" ", "&nbsp;")}</p>` : ""}
+          <p class="chopp-lote-nome"><strong>${l.nome}</strong>${l.valor ? `<span class="chopp-preco">${l.valor.replace(" ", "&nbsp;")}</span>` : ""}</p>
+          <p class="chopp-lote-detalhe">${selos[l.situacao] ? `<span class="chopp-lote-selo">${selos[l.situacao]}</span> ` : ""}${l.detalhe}</p>
+          ${l.chamada ? `<p class="chopp-lote-chamada">${l.chamada}</p>` : ""}
         </li>`
     )
     .join("");
@@ -1675,7 +1672,7 @@ function criarBlocoPrecos(precos) {
                 (i) => `
             <li style="--cor-chopp: ${i.cor || "#e8a83c"};">
               <span class="chopp-copo-cor" aria-hidden="true"></span>
-              <span class="chopp-barris-nome">${i.nome}</span>
+              <span class="chopp-barris-nome">${i.nome}${i.detalhe ? `<small>${i.detalhe}</small>` : ""}</span>
               <strong class="chopp-preco">${i.valor.replace(" ", "&nbsp;")}</strong>
             </li>`
               )

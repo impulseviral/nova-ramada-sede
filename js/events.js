@@ -153,9 +153,9 @@ const EVENTS = [
         {
           marca: "Roleta Russa",
           itens: [
-            { nome: "Pilsen Extrema · 50 litros", valor: "R$ 1.500,00", cor: "#d9732a" },
-            { nome: "Easy IPA · 50 litros", valor: "R$ 1.700,00", cor: "#eba12a" },
-            { nome: "IPA · 50 litros", valor: "R$ 1.900,00", cor: "#9e2f25" },
+            { nome: "Pilsen Extrema", detalhe: "50 litros", valor: "R$ 1.500,00", cor: "#d9732a" },
+            { nome: "Easy IPA", detalhe: "50 litros", valor: "R$ 1.700,00", cor: "#eba12a" },
+            { nome: "IPA", detalhe: "50 litros", valor: "R$ 1.900,00", cor: "#9e2f25" },
           ],
         },
       ],
