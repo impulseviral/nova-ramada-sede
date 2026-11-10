@@ -3,7 +3,7 @@
 
 // Abertura das vendas. ATENÇÃO: a mesma data está em js/events.js
 // (LANCAMENTO_LOTES.dataIso); se mudar, mude nos dois lugares.
-export const LANCAMENTO = Date.parse("2026-11-10T08:00:00-03:00");
+export const LANCAMENTO = Date.parse("2026-11-10T07:30:00-03:00");
 export const DURACAO_MS = 60 * 60 * 1000; // a reserva segura as posições por 1 hora
 export const MAX_POSICOES = 6; // posições por reserva
 // Soma das reservas vivas de uma mesma conexão. Folgado de propósito: num
