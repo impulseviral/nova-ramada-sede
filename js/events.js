@@ -59,8 +59,8 @@ const PATROCINADORES = {
 // o site troca sozinho para "Lotes à venda!" com os botões de compra.
 const LANCAMENTO_LOTES = {
   // A mesma data está em netlify/functions/reservas/logica.mjs (LANCAMENTO): mude nos dois.
-  dataIso: "2026-11-10T08:00:00-03:00",
-  label: "10 de novembro às 8h",
+  dataIso: "2026-11-10T07:30:00-03:00",
+  label: "10 de novembro às 7h30",
   mensagemCompra: "Vim pelo site da Nova Ramada e quero garantir meu ingresso para o Tradicional Baile do Chopp (12/12).",
 };
 
